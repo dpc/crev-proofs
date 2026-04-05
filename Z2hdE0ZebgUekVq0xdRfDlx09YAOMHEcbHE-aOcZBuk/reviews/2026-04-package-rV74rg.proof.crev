@@ -1,0 +1,382 @@
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-05T19:02:22.914637269+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: crev-recursive-digest
+  version: 0.6.0
+  digest: B1ITT1nUDtq9FqjfaL3bWQSeD8BCnC_9EYtWDFSqu5Q
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: crev-recursive-digest 0.6.0
+  
+  - Local source: `/home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crev-recursive-digest-0.6.0`
+  - Upstream repository: `https://github.com/crev-dev/recursive-digest` (NOTE: differs from `repository` field in Cargo.toml.orig — see finding #1)
+  - Upstream commit verified: `80c97fd00fb05d9341fa5face36c205c663db16f` (matches `.cargo_vcs_info.json`, equals current `master` HEAD)
+  - Upstream tag for version: **none** — repo has no tags at all (see finding #2)
+  - Chosen thoroughness: `medium` (297 LoC lib + 236 LoC tests; small enough to read end-to-end, too much to claim `high` without much deeper formal reasoning)
+  - Verification outcome: **pass** (with findings, all recorded below; no blockers)
+  
+  ## External verification
+  
+  1. Located crate via `cargo run -- crev crate dir crev-recursive-digest 0.6.0`.
+  2. Read `.cargo_vcs_info.json`:
+     ```json
+     { "git": { "sha1": "80c97fd00fb05d9341fa5face36c205c663db16f" },
+       "path_in_vcs": "" }
+     ```
+  3. Read `Cargo.toml.orig` — `repository` field says
+     `https://github.com/crev-dev/cargo-crev/tree/master/recursive-digest`,
+     which is a subdirectory of the crev-dev/cargo-crev monorepo.
+     **Finding #1 (stale metadata, benign):** that subdirectory no
+     longer exists in the monorepo. The crate source actually lives in
+     its own repo at `https://github.com/crev-dev/recursive-digest`.
+     Cloned from that real upstream instead. Worth updating the
+     `repository` field in a future release so downstream reviewers and
+     `cargo crev` users don't chase a dead link.
+  4. Upstream clone: `jj git clone --colocate https://github.com/crev-dev/recursive-digest`.
+  5. Checked upstream tags: **none**.
+     **Finding #2 (release hygiene, benign):** upstream has no git tags
+     at all, so there is no `v0.6.0` tag to cross-check against. The
+     verification is pinned only to the commit from
+     `.cargo_vcs_info.json`. That sha happens to equal current `master`
+     HEAD (message `"Bump"`), which is weak evidence that publishing
+     was done from a clean release-bump commit, but tagging releases
+     would strengthen the provenance chain considerably.
+  6. Positioned upstream at `80c97fd0` via `jj new ktrmontt`.
+  7. Ran `diff -r --brief "$SRC" "$UP"` with ignore list: `Cargo.toml`,
+     `Cargo.toml.orig`, `.cargo_vcs_info.json`, `.cargo-ok`,
+     `Cargo.lock`, `.git`, `.jj`.
+     **Result: empty output.** Every file in the crate tarball is
+     byte-for-byte identical to upstream at `80c97fd0`.
+  8. Cross-checked the manifest: `diff -u Cargo.toml.orig upstream/Cargo.toml`
+     is empty. **Result: identical.** No workspace-inheritance
+     artifacts — `Cargo.toml.orig` has an empty `[workspace]` marker
+     which makes the crate standalone.
+  
+  **External verification outcome:** pass. Package cleanly matches
+  public repo `https://github.com/crev-dev/recursive-digest` at commit
+  `80c97fd0`. Two non-blocking metadata findings recorded (#1, #2).
+  
+  ## Claims baseline
+  
+  From `Cargo.toml` and `README.md`:
+  
+  > "Library implementing recursive digest for filesystem directories."
+  > Computes a cryptographic hash over a directory tree using the
+  > recursive scheme `H(prefix || content)` with a 1-byte prefix per
+  > entry type: `F` for files, `L` for symlinks, `D` for directories.
+  
+  Dependencies and their justification:
+  
+  - `digest` — trait abstractions for hash functions. Justified (core
+    purpose).
+  - `thiserror` — ergonomic error enums. Justified (library hygiene).
+  - `walkdir` — recursive filesystem iterator. Justified (core
+    purpose).
+  - Dev-deps: `hex`, `tempdir`, `blake2`. All justified for tests.
+  
+  **Expected capability set**, given the claims: read filesystem
+  (files, symlinks, directories). Nothing else.
+  
+  ## Non-negotiable checks
+  
+  - **`build.rs`:** **absent** — positive.
+  - **Proc-macro:** **absent** (`proc-macro = true` not in
+    `Cargo.toml`) — positive.
+  - **`unsafe`:** **zero** `unsafe` blocks in `src/lib.rs` — positive.
+  - **FFI surface:** **none** (no `extern "C"`, no C library deps) —
+    positive.
+  - **Dependencies vs claims:** all three runtime deps (`digest`,
+    `thiserror`, `walkdir`) are tightly justified by the stated
+    purpose. No surprise network / crypto / process / env libraries.
+  - **Capabilities exercised:**
+    - Filesystem read: `fs::File::open`, `BufReader`, `path.read_link()`,
+      `walkdir::WalkDir`. All justified by stated purpose.
+    - No `std::process`, `std::env`, `std::net`, `include_bytes!`,
+      `include_str!`, base64 blobs, hex literals, or raw-byte `const`
+      arrays. (Verified via grep.)
+    - Reconciled: **no capability exercised is outside the expected
+      set.**
+  
+  ## Code review findings
+  
+  ### Architecture summary
+  
+  The crate exposes `RecursiveDigest` (generic over a `digest::Digest`
+  hash function, a filter predicate, and an "additional data" closure)
+  plus a `RecursiveDigestBuilder`. The work happens in
+  `RecursiveDigest::get_digest_of(root_path)`:
+  
+  1. Walk the tree in pre-order with `walkdir`, sorted, no symlink
+     follow.
+  2. Maintain a stack of in-progress hashers, one per directory depth.
+  3. For each entry: (a) flush deeper hashers into their parent if
+     we've walked out of a subtree, (b) create a fresh hasher for this
+     entry, (c) write the name (at depth > 0) and content (file bytes
+     with `"F"` prefix, or symlink target with `"L"` prefix, or `"D"`
+     for directories) into the right hashers.
+  4. At end of walk, drain the remaining stack by flushing upward
+     until only the root hasher remains; return its digest.
+  
+  ### Finding #3 — code diverges from README algorithm for "additional data"
+  
+  **Severity:** medium. This is a real code/docs mismatch that affects
+  anyone trying to implement the algorithm externally (porting to
+  another language, producing reference vectors, etc.).
+  
+  The README states:
+  
+  > If optional additional data extensions is used, the `H(entry_name)`
+  > above becomes `H(entry_name || 0 || additional data)`.
+  
+  i.e. the additional data should be folded *into the entry-name hash*,
+  producing a single hash that is then appended to the parent.
+  
+  The code in `src/lib.rs:232-251` does something different:
+  
+  ```rust
+  let hasher = hashers.get_mut(depth - 1).expect("must not happen"); // parent
+  
+  let mut name_hasher = D::new();
+  hash_osstr(&mut name_hasher, entry.path().file_name()...);
+  
+  // additional_data writer borrows `hasher` (the PARENT), not `name_hasher`
+  (self.additional_data)(&entry, &mut AdditionalDataWriter { hasher, used: false })?;
+  
+  <D as digest::Digest>::update(hasher, name_hasher.finalize_fixed().as_slice());
+  ```
+  
+  `AdditionalDataWriter::input` writes `[0 || bytes]` **directly into
+  the parent hasher**, then after that call returns, `H(name)` is
+  appended to the parent as well. So the parent hasher sees, in order:
+  
+  ```
+  ... || [0 || additional_data] || H(entry_name) || ...
+  ```
+  
+  Not the README's:
+  
+  ```
+  ... || H(entry_name || 0 || additional_data) || ...
+  ```
+  
+  The two are structurally distinct: one is a sequence of three things
+  at the parent level, the other is a single nested hash. For the
+  default no-op additional-data closure (the common case), behaviour
+  is identical because nothing is written — but any caller supplying
+  a real `additional_data` closure will get a different digest than
+  the README promises.
+  
+  Also, the ordering is reversed: README says `name || 0 || data`, the
+  code writes `0 || data` first and `H(name)` after.
+  
+  Recommendation: either update the README to describe what the code
+  actually does, or change the code so that `additional_data` writes
+  to `name_hasher` (not the parent) and the README matches. I lean
+  toward the latter because the README's formulation is cleaner and
+  more cryptographically sensible (one atomic hash per directory
+  entry).
+  
+  ### Finding #4 — platform-dependent digest for non-UTF-8 filenames
+  
+  **Severity:** low-medium. The recursive digest is not bit-identical
+  across platforms for edge-case filenames.
+  
+  ```rust
+  #[cfg(unix)]
+  fn hash_osstr<D: digest::Digest>(digest: &mut D, s: &OsStr) {
+      use std::os::unix::ffi::OsStrExt;
+      digest.update(s.as_bytes());                   // raw bytes
+  }
+  
+  #[cfg(not(unix))]
+  fn hash_osstr<D: digest::Digest>(digest: &mut D, s: &OsStr) {
+      digest.update(s.to_string_lossy().as_bytes()); // lossy!
+  }
+  ```
+  
+  On unix, a filename's raw bytes are hashed. On Windows (and any
+  non-unix target), `to_string_lossy` replaces any invalid UTF-8 with
+  `U+FFFD`. So a directory containing a filename that is valid on
+  unix but contains non-UTF-8 bytes will produce a *different* hash
+  when the same tree is digested on Windows.
+  
+  For the crev use case (hashing Rust source trees that are almost
+  always ASCII/UTF-8 filenames) this is unlikely to bite in practice,
+  but it means `crev_recursive_digest` cannot be used as a
+  cross-platform content-addressed identifier in the strict sense,
+  which is what the README's algorithm description seems to promise.
+  Worth either documenting the caveat or normalising on both sides
+  (e.g. treat non-UTF-8 Windows filenames as errors rather than
+  lossy-decoding them).
+  
+  ### Finding #5 — symlink target must be valid UTF-8, contradicts README
+  
+  **Severity:** low. `src/lib.rs:296-310`:
+  
+  ```rust
+  fn read_content_of_symlink(&self, full_path: &Path, parent_hasher: &mut D) -> Result<(), DigestError> {
+      <D as digest::Digest>::update(parent_hasher, b"L");
+      <D as digest::Digest>::update(parent_hasher,
+          full_path
+              .read_link()?
+              .to_str()                                   // UTF-8 required
+              .ok_or(DigestError::OsStrConversionError)?
+              .as_bytes(),
+      );
+      Ok(())
+  }
+  ```
+  
+  The README says:
+  
+  > `symlink_content` is just the path the symlink is pointing to, as bytes.
+  
+  "As bytes" implies raw bytes. The code requires valid UTF-8 and
+  errors out on invalid targets. On unix, symlinks pointing at
+  non-UTF-8 paths are legal and exist in the wild; such a tree cannot
+  be digested. Either document the UTF-8 requirement or use the same
+  `OsStrExt::as_bytes()` trick on unix as `hash_osstr` does.
+  
+  ### Finding #6 — load-bearing `expect` calls without a soundness comment
+  
+  **Severity:** low (code-quality / maintenance). `get_digest_of`
+  contains 7 `.expect(...)` calls in the hasher-stack machinery (lines
+  187, 190, 234, 240, 257, 262, 265, 278). Each one is defensible
+  under the invariants of walkdir's sorted pre-order traversal
+  (you descend at most one level at a time; a directory's entries
+  immediately follow it; `root_path` is always the first entry), but
+  none of these invariants is stated in a comment next to the
+  `expect`s. A future refactor that touches the iteration or the
+  filter predicate could silently break an invariant and convert a
+  logic bug into a runtime panic. Suggest either documenting the
+  invariants inline or converting the `expect`s to `Result` returns.
+  
+  The invariants appear to hold currently — no actionable security
+  concern — but the code is more fragile than it needs to be.
+  
+  ### Finding #7 — tests use only the deprecated API
+  
+  **Severity:** low (maintenance). `tests/sanity.rs` uses
+  `#![allow(deprecated)]` and exclusively calls
+  `get_recursive_digest_for_dir` / `get_recursive_digest_for_paths`,
+  the two top-level functions marked `#[deprecated]` in `src/lib.rs`.
+  The non-deprecated builder API (`RecursiveDigest::new()` + `.build()`)
+  has no test coverage. If the deprecated functions are ever removed,
+  tests break and the remaining API ships untested. Suggest porting
+  tests to the builder API before any deprecation cleanup.
+  
+  ### Other observations
+  
+  - The `expect("must be prefix")` calls at lines 326/347 (in the
+    deprecated wrappers) rely on `walkdir` only yielding paths that
+    start with `root_path`. True as of the walkdir versions this crate
+    has been tested against, but a behavioural dependency worth
+    noting.
+  - `hashers.last_mut()` is called immediately after
+    `hashers.push(D::new())` several times; these could use the
+    return value of `push` (but `Vec::push` returns `()`, so this is
+    unavoidable without `Vec::push_get_ref` or similar — not a
+    finding, just an observation).
+  - Test coverage is reasonable but shallow: no tests for the
+    `AdditionalDataWriter` interaction (which is where Finding #3
+    lives!), no tests for `DigestError::FileNotSupported`, no tests
+    for the `filter` closure behaviour beyond the deprecated
+    include/exclude wrappers.
+  
+  ## Cross-check against existing reviews
+  
+  Queried the local proof database via:
+  
+  ```sh
+  cargo run -- crev repo query review crev-recursive-digest
+  cargo run -- crev repo query review crev-recursive-digest 0.6.0
+  ```
+  
+  Both queries returned empty. **No prior reviews of
+  `crev-recursive-digest` at any version exist in the local WoT.**
+  This is consistent with the `0 0` review counts seen in
+  `cargo crev verify --show-all --force-print-header` for this crate,
+  and it is exactly the situation the candidate-selection heuristic
+  prioritises (obscure long-tail crate that nobody else is reviewing).
+  
+  - **Agreement:** n/a — nothing to compare against.
+  - **Disagreement:** n/a.
+  - **Verdict:** no prior reviews to reconcile with; draft fields
+    (`thoroughness: medium`, `understanding: medium`, `rating: positive`)
+    stand as-is.
+  
+  Note that "no prior reviews" cuts both ways. On the one hand, there
+  is no independent corroboration of my findings. On the other hand,
+  this review — once signed — will be the first trusted signal for
+  this crate in the ecosystem, which is precisely its value.
+  
+  ## Open questions / things skipped
+  
+  - Did **not** write or run a reference implementation of the README
+    algorithm to empirically confirm Finding #3. The conclusion is
+    from code reading alone. High confidence, but not experimentally
+    validated.
+  - Did **not** run the test suite. Relying on visual inspection of
+    `tests/sanity.rs` for correctness of the test vectors.
+  - Did **not** audit the `walkdir` dependency itself (scope: we are
+    reviewing `crev-recursive-digest`, not its transitive graph). The
+    walkdir invariants the `expect`s rely on are taken on trust.
+  - Did **not** examine the three `LICENSE-*` files for tampering;
+    assumed they are the standard MPL-2.0 / MIT / Apache-2.0 texts
+    (they are the standard sizes and the crate is triple-licensed
+    project-wide in the cargo-crev workspace).
+  - Did **not** run `cargo tree` for dep graph surprises (the three
+    deps are small and well-known; low value).
+  - Did **not** attempt to break the algorithm with adversarial
+    inputs (symlink loops, deeply nested trees, filenames with
+    embedded NUL bytes). `walkdir` handles symlink loops via
+    `follow_links(false)`, which is set, so that class is covered.
+    The other adversarial cases were not explored.
+  
+  ## Draft review fields
+  
+  - `thoroughness`: `medium`
+    *(read every line of the 297-LoC library and 236-LoC test file,
+    wrote an architecture summary, reconciled capabilities against
+    claims, reasoned about `expect` invariants under walkdir's
+    pre-order traversal, but did not formally prove soundness or run
+    adversarial tests.)*
+  - `understanding`: `medium`
+    *(the core algorithm is clear; the `AdditionalDataWriter`
+    interaction with the parent hasher was subtle enough that Finding
+    #3 took me a second read to convince myself of, and I did not
+    experimentally confirm it.)*
+  - `rating`: `positive`
+    *(no security red flags, no unsafe, no surprising capabilities,
+    capability set matches stated purpose exactly. The findings are
+    documentation-vs-code mismatches and code-quality concerns, not
+    vulnerabilities. I would use this crate myself.)*
+  
+  A stricter reviewer could argue for `neutral` on the grounds that
+  Finding #3 is a real documented-behaviour-vs-real-behaviour gap and
+  the README is the public contract. I went with `positive` because
+  the common case (no additional data) is unaffected and the gap is
+  fixable in a patch release.
+  
+  No `issues` or `advisories` raised — all findings are either
+  metadata concerns or documentation gaps. I'd recommend the author
+  (the user themselves) open follow-ups for Findings #3, #4, #5, #1,
+  #2 as regular GitHub issues, not as crev advisories, because none
+  of them rise to "do not use this version".
+----- SIGN CREV PROOF -----
+XLCS4tUd0HN-yyabCl2AEhPKMG1258UaDGRWbeyxs94fqBr1gYaE3_VEBatsBTS9QXrV9P7U7bOb-jIO0LF4BA
+----- END CREV PROOF -----
+
