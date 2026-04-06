@@ -1949,3 +1949,64 @@ comment: |-
 rWngBxTun0Ko26D2eLh31w4yHa0CbQsfBzpk87BHFIAS1m7pyz-xfpBH1N-mix4WVc3GJDYLlpcyhR_co87zAQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T06:54:40+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: pathdiff
+  version: 0.2.3
+  digest: J7E_qW1Fneo6jnAT0oe9prYNZcaKXkyZH5aWlgnwTec
+review:
+  thoroughness: high
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: pathdiff 0.2.3
+  
+  - Upstream: https://github.com/Manishearth/pathdiff
+  - Upstream commit: 5180ff5b23d9d7eef0a14de13a3d814eb5d8d65c
+  - Verification: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: high** (252 LoC, 1 file, every line read.)
+  
+  Constructs relative paths between two paths. Adapted from rustc's `path_relative_from`.
+  By Manish Goregaokar.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Dependencies**: Zero required (optional `camino`). Positive.
+  - **FFI**: None. Positive.
+  - **`unsafe`**: Zero. Positive.
+  
+  ### Red-flag scan
+  
+  Clean. Pure computation — no I/O, no network, no env, no process spawning, no filesystem.
+  Operates entirely on `std::path::Path` components.
+  
+  ### Architecture
+  
+  `diff_paths(path, base)` walks both paths' components simultaneously, consuming matching
+  prefixes, builds relative path with `../`. Handles absolute/relative mismatch, `.`
+  components, `..` in base. Feature-gated `diff_utf8_paths` for camino paths.
+  Comprehensive test suite.
+  
+  ## Rating rationale
+  
+  Strong: trivially small, zero deps, zero unsafe, pure computation, well-tested, from
+  a trusted author. Every line examined.
+----- SIGN CREV PROOF -----
+kcCYtefz1zJjFBku0iA2iHmScoltOpSGvYH1QtmBmh5ARUwmm5vc6hBQWD60dR0YlJzUfbo9V2oIKOfjjI5NDw
+----- END CREV PROOF -----
+
