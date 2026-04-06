@@ -1490,3 +1490,23 @@ comment: |-
 0xA9Fh2WjYyd01m2ifYgcYYMLRyJ4URKYEyUhCn1zeTiGh8jdx22H0RnK_Isswqf_hZrIe5OUe34w9BGFgN3DQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T06:12:08+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: rustc-stable-hash
+  version: 0.1.2
+  digest: rHelMIsswxDxcQoRfrAXdDAEoaOTax1bdCR3aDHloiA
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+----- SIGN CREV PROOF -----
+L2tRODNVUXXPChTPK9oDqQl8ZKqBSg1yIHRpuqmkVpsazfqpXgrgokzjN0DcDqZGPdUtbc-sUSUmMMul7si2Ag
+----- END CREV PROOF -----
+
