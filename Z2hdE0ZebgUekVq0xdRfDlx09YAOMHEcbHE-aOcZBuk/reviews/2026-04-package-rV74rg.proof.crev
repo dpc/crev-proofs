@@ -1680,3 +1680,70 @@ comment: |-
 wnGbiRPo_XVJGn-MCJbm5_n0tqnb02yKxtwkoaM3hsAUmEA71iUoVzp8TFlzdhkr0Oi4mQoRfmyZlJVJs_h_Cg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T06:47:58+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: grep-searcher
+  version: 0.1.14
+  digest: nEEKL986qFQ5x0WUkrcgepxmPbrpho5kAISeWYn7h7w
+review:
+  thoroughness: low
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: grep-searcher 0.1.14
+  
+  - Upstream: https://github.com/BurntSushi/ripgrep (crates/searcher)
+  - Upstream commit: c6c2e69b8f7b7289789c483da8b04dbd529f3c91
+  - Verification: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: low** (6355 LoC, 10 files. Read lib.rs, mmap.rs, sink.rs in full;
+  skimmed searcher/mod.rs; did not read line_buffer.rs, core.rs, glue.rs, lines.rs.)
+  
+  From BurntSushi's ripgrep. Line-oriented regex search library with support for
+  multi-line search, context lines, binary detection, encoding transcoding, and mmap.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Dependencies**: bstr, encoding_rs, encoding_rs_io, grep-matcher, log, memchr,
+    memmap2. All justified and well-known.
+  - **FFI**: None directly (memmap2 handles mmap FFI). Positive.
+  - **`unsafe`**: Two blocks in mmap.rs only:
+    1. `pub unsafe fn auto()` — constructor that enables mmap usage, with well-documented
+       safety contract (caller guarantees underlying file won't be mutated).
+    2. `Mmap::map(file)` — actual mmap creation, gated behind auto() being called.
+       Error handled gracefully. Disabled on macOS. Sound.
+  
+  ### Red-flag scan
+  
+  Clean. No process spawning, no env access, no network. File reading via std::fs::File
+  and memmap2 — justified for a search library.
+  
+  ### Files not examined
+  
+  - line_buffer.rs (~1100 lines): core buffer management — not read.
+  - core.rs (~700 lines): search loop — skimmed only.
+  - glue.rs (~600 lines): search variants — skimmed only.
+  - lines.rs (~400 lines): line iteration — not read.
+  - Thoroughness is honestly `low` due to these gaps.
+  
+  ## Cross-check
+  
+  No prior reviews at any version.
+----- SIGN CREV PROOF -----
+Lo0xmU2cuXPTV65Ce-9100kNINAxTtbrYrQJ6tH2zNCBCOMnZUFkHmdJ5Nxy__32MxZU_tUeOooPQqJcvI9NAg
+----- END CREV PROOF -----
+
