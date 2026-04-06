@@ -1198,3 +1198,61 @@ comment: |-
 Og3eTzE6FJu1miz7pZkYETnT1qulaCcLBn6gJBeIqjZwdEUZTiqhzYs_hsvg524tk7tlw2P0_fBvWo4zuMFlBA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T05:29:15+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: cargo-credential-wincred
+  version: 0.4.20
+  digest: LmK-yslUvJzusUFlx6VZGVciOcuXxkH8rd9kaGivqPg
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: cargo-credential-wincred 0.4.20
+  
+  - Upstream: https://github.com/rust-lang/cargo (credential/cargo-credential-wincred)
+  - Upstream commit: 85eff7c80277b57f78b11e28d14154ab12fcf643
+  - Verification: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: medium** (115 LoC, 1 file, read in full.)
+  
+  Official Cargo team crate. Stores Cargo registry tokens in Windows Credential Manager
+  via Win32 APIs (CredReadW, CredWriteW, CredDeleteW, CredFree).
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Dependencies**: cargo-credential, windows-sys. Both justified.
+  - **FFI**: Win32 Credential Management API — CredReadW (get), CredWriteW (login),
+    CredDeleteW (logout), CredFree (cleanup). All error-checked.
+  - **`unsafe`**: Three blocks, all Win32 API calls. CredReadW blob is copied to Vec
+    before CredFree — correct. CREDENTIALW struct properly populated with null-terminated
+    wide strings. Sound throughout.
+  
+  ### Red-flag scan
+  
+  Clean. No network, no env access, no process spawning. Windows-only via cfg gate;
+  other platforms get UnsupportedCredential. wstr() helper correctly handles null-
+  terminated UTF-16 conversion with embedded-null check.
+  
+  ## Rating rationale
+  
+  Positive: official Cargo team crate, tiny and focused, correct unsafe patterns with
+  proper memory management (copy before free).
+----- SIGN CREV PROOF -----
+Xx8Gm0wnFqBQ5vugaouRJG-UxJc1zFQaiXFAl51vGO2b6jZHDxrUSEujssUlAmhOIYWNod26rJnQPVv7TnOQAg
+----- END CREV PROOF -----
+
