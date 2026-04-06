@@ -380,3 +380,165 @@ comment: |-
 XLCS4tUd0HN-yyabCl2AEhPKMG1258UaDGRWbeyxs94fqBr1gYaE3_VEBatsBTS9QXrV9P7U7bOb-jIO0LF4BA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T05:00:23+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: rprompt
+  version: 2.2.0
+  digest: BmgTCsO-NHSGun1cktWgIrCnxqU8g8qn6L2Kne8FcyA
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: rprompt 2.2.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rprompt-2.2.0
+  - Upstream repository: https://github.com/conradkleinespel/rprompt
+  - Upstream commit verified: 051b2df73c8eeac8e5ef9f5075cf91f05a0b43ec (v2.2.0 tag)
+  - Upstream tag for version: v2.2.0
+  - Verification outcome: partial
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `4ea6bcd697ff107fa4b95ffad47d47281c2d44fb` with
+  `path_in_vcs: "projects/rprompt"`, but this sha does not exist in the upstream repository
+  (returns "not our ref"). The upstream repo has been restructured: at the v2.2.0 tag the
+  crate lives at the repository root, not under `projects/rprompt`. This is consistent with
+  the repo having been reorganised (force-push or history rewrite) after the crate was
+  published. The vcs_info sha is stale.
+  
+  Falling back to the v2.2.0 tag (commit `051b2df7`):
+  
+  - `src/lib.rs`: **bit-for-bit identical** between crate tarball and upstream at v2.2.0.
+  - `Cargo.toml.orig` vs upstream `Cargo.toml`: **identical**.
+  - `CONTRIBUTING.md`, `LICENSE-APACHE`, `README.md`: identical.
+  - `Cargo.toml` (rewritten by cargo publish): expected differences only.
+  - Files only in tarball: `Cargo.toml.orig`, `.cargo_vcs_info.json`, `Cargo.lock` — expected.
+  
+  **Conclusion:** Source code matches upstream at the v2.2.0 tag. The vcs_info sha mismatch
+  is a bookkeeping issue (repo restructured post-publish), not a tampering indicator.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** (53 LoC Rust; small enough to read end-to-end carefully.)
+  
+  **Claims baseline:** Crate claims to "prompt user input in console applications" on Unix
+  and Windows. It should read from TTY and optionally print a prompt. No network, no filesystem
+  beyond /dev/tty (Unix) or CONIN$ (Windows), no env vars, no subprocesses.
+  
+  ### File map
+  
+  - `src/lib.rs` (94 lines): **read in full**
+  - `Cargo.toml.orig`: **read in full**
+  - `README.md`: **read in full**
+  - `CONTRIBUTING.md`: not read (contribution guidelines, not code)
+  - `LICENSE-APACHE`: not read (standard Apache 2.0 license)
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc macros**: None. Positive.
+  - **Dependencies**: `rtoolbox` (helper for TTY printing, same author), `windows-sys` (Windows
+    only, well-known Microsoft crate for Win32 FFI). Both justified by stated purpose. No
+    surprising deps.
+  - **FFI surface**: Windows-only: `windows-sys::Win32::Storage::FileSystem::CreateFileA` to
+    open `CONIN$`. No other FFI.
+  - **`unsafe` blocks**: Two, both in `#[cfg(windows)] fn get_tty_reader()`:
+    1. Lines 74–84: `CreateFileA(...)` — standard Win32 FFI call to open the console input.
+       Arguments are correct: `CONIN$\x00` as the filename, `GENERIC_READ | GENERIC_WRITE`,
+       share flags, null security attributes, `OPEN_EXISTING`, 0 flags, `INVALID_HANDLE_VALUE`
+       as template. The return value is checked against `INVALID_HANDLE_VALUE` before use.
+       Sound.
+    2. Lines 90–92: `std::fs::File::from_raw_handle(handle as _)` — transfers ownership of
+       the raw handle to a `File`. This is the idiomatic Rust pattern. The handle is valid
+       (checked above) and not aliased. Sound.
+  
+  ### Red-flag scan
+  
+  - No `transmute`, no raw pointer arithmetic.
+  - No `Command::new` or process spawning.
+  - No `std::env::var` or env access.
+  - No network libraries.
+  - No `include_bytes!` or `include_str!`.
+  - No obfuscated strings or binary blobs.
+  - No `unwrap`/`expect`/`panic!` on user input paths — errors propagate via `std::io::Result`.
+  - Conditional compilation (`#[cfg(unix)]` / `#[cfg(windows)]`) is straightforward and
+    expected for a TTY library.
+  
+  ### Architecture summary
+  
+  Four public functions, two pairs:
+  - `read_reply()` / `read_reply_from_bufread()`: read a line from TTY or arbitrary BufRead.
+  - `prompt_reply()` / `prompt_reply_from_bufread()`: print a prompt then read a line.
+  
+  Internal helper `get_tty_reader()` opens `/dev/tty` on Unix or `CONIN$` on Windows. Line
+  cleanup is delegated to `rtoolbox::fix_line_issues`. Prompt printing is delegated to
+  `rtoolbox::print_tty` / `print_writer`.
+  
+  ### Reconciliation against claims
+  
+  The crate does exactly what it claims: prompts for and reads user input from the TTY.
+  Capabilities exercised:
+  - Filesystem: opens `/dev/tty` (Unix) or `CONIN$` (Windows) — justified, this is the TTY.
+  - FFI: `CreateFileA` on Windows — justified, needed to open console handle.
+  - No other capabilities (no network, no env, no processes, no additional filesystem access).
+  
+  No capability exceeds the stated purpose.
+  
+  ### Minor observations
+  
+  - `Cargo.toml.orig` still has `rtoolbox = { path = "../rtoolbox", version = "0.0" }` — the
+    path dep is stripped by `cargo publish`, leaving only the version requirement. This is
+    normal for workspace-published crates.
+  - The `handle as _` cast on line 91 silently casts the Windows `HANDLE` (isize) to a
+    `RawHandle` (also isize on Windows). This is correct but relies on type equivalence that
+    could in theory change. In practice this is the standard pattern used everywhere.
+  
+  ## Cross-check against existing reviews
+  
+  One prior review exists: version 1.0.3, reviewed by `FYlr8YoYGVvDwHQxqEIs89reKKDy-oWisoO0qXXEfHE`
+  (the user's own id), rated `strong` with `high` thoroughness and `high` understanding. No
+  comment or issues.
+  
+  **Agreement:** The prior review's `strong` rating is consistent with my finding of a clean,
+  minimal, well-structured crate. The code has grown slightly since 1.0.3 (added Windows
+  support via `windows-sys` instead of the older approach), but the overall quality and
+  simplicity remain.
+  
+  **Disagreement:** None substantive. The version jump from 1.0.x to 2.2.0 brought a
+  dependency change (winapi → windows-sys) and the `from_bufread` API variants, but nothing
+  that changes the security posture.
+  
+  **Verdict:** The prior review does not change my proposed fields. I rate `positive` rather
+  than `strong` because I'm an LLM agent and the crate is not trivial enough (it has `unsafe`
+  Windows FFI) to warrant `strong` from an automated review. The user may upgrade to `strong`
+  after personal verification.
+  
+  ## Open questions / things skipped
+  
+  - `rtoolbox` dependency: I did not review `rtoolbox` itself. It provides `fix_line_issues`
+    (line ending cleanup) and `print_tty`/`print_writer` (TTY output). It's by the same
+    author. A full review would cover it separately.
+  - Test directory: No tests directory present in the crate tarball.
+  - CONTRIBUTING.md: Not reviewed (non-code).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+uOfNIMHf-LypHNLtM6pKCWBijariWkB7W6fqrd2-4fBXx_xqqZsKz_CsIALITgtha4xy5SxnDnV6hcuLDxXRCw
+----- END CREV PROOF -----
+
