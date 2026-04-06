@@ -1134,3 +1134,67 @@ comment: |-
 vquxSfyYS71d90B56FNe7ajknrQTpqpndf79x_DyxBHjrqwWRPkHKW2FGGdwOvxPAammEyWRYVhNkX4s_yH_AQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T05:26:32+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: cargo-credential-libsecret
+  version: 0.5.5
+  digest: ITUJa_xocUPoKLAaYg3K73ZpSJlU3Rmajrb8xlIiL9k
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: cargo-credential-libsecret 0.5.5
+  
+  - Upstream: https://github.com/rust-lang/cargo (credential/cargo-credential-libsecret)
+  - Upstream commit: 85eff7c80277b57f78b11e28d14154ab12fcf643
+  - Verification: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: medium** (238 LoC, 1 file, read in full.)
+  
+  Official Cargo team crate. Stores Cargo registry tokens in GNOME libsecret on Linux.
+  Dynamically loads `libsecret-1.so.0` via `libloading` and calls `secret_password_*_sync`
+  functions.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Dependencies**: cargo-credential, anyhow, libloading. All justified.
+  - **FFI**: Dynamically loads libsecret and calls three functions (lookup, store, clear).
+    All calls use proper schema, null-terminated strings, error checking.
+  - **`unsafe`**: All in FFI code — Library::new, symbol lookup, and three libsecret FFI
+    calls. Standard libloading pattern. Error checked throughout. Sound.
+  
+  ### Red-flag scan
+  
+  Clean. No network, no env access, no process spawning. Linux-only via cfg gate; other
+  platforms get UnsupportedCredential. Dynamic library name is the well-known GNOME lib.
+  
+  ### Minor observations
+  
+  - GError and returned token pointers are never freed (minor memory leak, cosmetic in
+    short-lived credential helper processes).
+  - CString::new().unwrap() on URLs could panic on null bytes, but registry URLs don't
+    contain them.
+  
+  ## Rating rationale
+  
+  Positive: official Cargo team crate, straightforward FFI with proper error handling,
+  Linux-only gate, does exactly what it claims.
+----- SIGN CREV PROOF -----
+Og3eTzE6FJu1miz7pZkYETnT1qulaCcLBn6gJBeIqjZwdEUZTiqhzYs_hsvg524tk7tlw2P0_fBvWo4zuMFlBA
+----- END CREV PROOF -----
+
