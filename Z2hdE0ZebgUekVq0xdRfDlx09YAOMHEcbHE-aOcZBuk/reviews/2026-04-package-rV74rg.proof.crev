@@ -1510,3 +1510,94 @@ llm-agent:
 L2tRODNVUXXPChTPK9oDqQl8ZKqBSg1yIHRpuqmkVpsazfqpXgrgokzjN0DcDqZGPdUtbc-sUSUmMMul7si2Ag
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T06:42:15+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: color-print
+  version: 0.3.7
+  digest: RQTV_a-icVOEl95ozGzGgbCT1-UhIB2Tq5IZ5tAkyNc
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: color-print 0.3.7
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/color-print-0.3.7
+  - Upstream repository: https://gitlab.com/dajoha/color-print
+  - Upstream commit verified: 21926a05b797a5ba3b0f42d32207389957af4e12 ("Release v0.3.7")
+  - Upstream tag for version: n/a (no v0.3.7 tag; latest tag is v0.3.6)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `21926a05b797a5ba3b0f42d32207389957af4e12` with
+  `path_in_vcs: "color-print"`. This commit exists upstream at gitlab.com/dajoha/color-print
+  with message "Release v0.3.7".
+  
+  - All files in `src/`: **bit-for-bit identical** between tarball and upstream at this sha.
+  - `Cargo.toml.orig` vs upstream `Cargo.toml`: **identical**.
+  
+  **Conclusion:** Source matches upstream exactly. Verification passes.
+  
+  ## Code review findings
+  
+  **Thoroughness level: high** (272 LoC Rust across 4 files; every file read in full,
+  every line examined.)
+  
+  **Claims baseline:** Compile-time terminal colorization macros using HTML-like tags.
+  The actual parsing happens in the companion proc-macro crate `color-print-proc-macro`;
+  this crate re-exports those macros and optionally provides runtime terminfo support.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Proc macros**: Not a proc-macro crate itself; re-exports from `color-print-proc-macro`.
+  - **Dependencies**: `color-print-proc-macro` (required, same author), `lazy_static` and
+    `terminfo` (optional, behind `terminfo` feature). All justified.
+  - **FFI**: None. Positive.
+  - **`unsafe`**: Zero. Positive.
+  
+  ### Red-flag scan
+  
+  Clean — no unsafe, no process spawning, no env access, no network, no filesystem, no
+  obfuscated strings.
+  
+  ### Architecture
+  
+  In default mode: pure re-export wrapper with zero runtime code. All work happens in
+  the proc-macro crate at compile time. With `terminfo` feature: adds `lazy_static`
+  constants for color/style codes resolved via terminfo database at first access.
+  
+  ### Reconciliation against claims
+  
+  Does exactly what it claims. Default mode has zero runtime payload. No capability
+  exceeds the stated purpose.
+  
+  ### Minor observations
+  
+  - `Database::from_env().ok()` silently degrades to empty strings if terminfo unavailable.
+  - Test `bold_and_dim_should_be_optimized` is `#[ignore]` — known optimization gap.
+  - Comprehensive test suite for ANSI output, nesting, auto-close, and format arguments.
+  
+  ## Cross-check
+  
+  No prior reviews at any version.
+  
+  ## Open questions
+  
+  - `color-print-proc-macro` should be reviewed separately (it runs at compile time).
+----- SIGN CREV PROOF -----
+0XlyJigL5m1LGqmyETuFkK4nDZM5SvqXPTg4HMfTtqGFbOL0r5G_vr2FgcDrCxM6LHUnzUl2IexW0kfITAHxBA
+----- END CREV PROOF -----
+
