@@ -1878,3 +1878,74 @@ comment: |-
 q-_EHF-4kfEEgfYxTJZHOWucDi_a98Q85nTbIkyo70kdAA3G7WkOkCuh3MnONzhmhTaZ9k3VrHp2ec-8F5u9Dw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-05T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: color-print-proc-macro
+  version: 0.3.7
+  digest: gKMHLLnI-nXILXV_EsuxM4aPG_eNZinLc_ODe3MYojo
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: color-print-proc-macro 0.3.7
+  
+  - Upstream: https://gitlab.com/dajoha/color-print (color-print-proc-macro/)
+  - Upstream commit: e42619565a566d12a0da4eb930940e918bff4db1
+  - Verification: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: high** (~1400 LoC across 12 source files, all read in full.)
+  
+  Proc-macro implementation crate for the color-print library. Provides macros
+  (cformat!, cprint!, cprintln!, cstr!, untagged!, etc.) that parse color tags
+  in format strings and replace them with ANSI escape sequences at compile time.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None (explicitly `build = false`). Positive.
+  - **Dependencies**: syn, quote, proc-macro2 (standard proc-macro ecosystem),
+    nom (parser combinators for tag syntax). All well-known. Positive.
+  - **FFI**: None. Positive.
+  - **`unsafe`**: Zero. Positive.
+  
+  ### Red-flag scan
+  
+  Clean. No network access, no filesystem I/O, no environment variable reads,
+  no process spawning, no include_bytes!/include_str!, no obfuscated strings.
+  Pure compile-time string transformation only.
+  
+  ### Architecture
+  
+  - lib.rs: 9 proc-macro entry points, all thin wrappers around get_macro()
+  - ansi.rs: ANSI code path — transforms color tags into escape sequences
+  - terminfo.rs: terminfo code path — uses named arguments referencing runtime constants
+  - color_context.rs: Tracks open/close tag state, computes state diffs for minimal ANSI output
+  - parse/color_tag.rs: nom-based parser for color tag syntax (<red>, <bold>, <rgb(1,2,3)>, etc.)
+  - format_args/: Parses format!-like arguments, splits format string into Text/Placeholder/ColorTag nodes
+  - untagged.rs: Strips color tags entirely (for untagged! macro)
+  
+  Two feature-gated code paths: default (hardcoded ANSI) and terminfo (runtime constants).
+  Auto-closes unclosed tags at end of format string. Good error messages via syn::Error.
+  
+  ## Rating rationale
+  
+  Positive: Well-structured proc-macro crate that does exactly what it claims. Zero unsafe,
+  no build script, no I/O of any kind. Standard proc-macro dependencies plus nom for parsing.
+  Source verified against upstream. Good test coverage for tag parsing.
+----- SIGN CREV PROOF -----
+rWngBxTun0Ko26D2eLh31w4yHa0CbQsfBzpk87BHFIAS1m7pyz-xfpBH1N-mix4WVc3GJDYLlpcyhR_co87zAQ
+----- END CREV PROOF -----
+
