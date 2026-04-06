@@ -1450,3 +1450,43 @@ comment: |-
 m2Rf9egZTMBJRBZZ_gR7qknj3IMVyqsGA_hf5sTswTVhcX3HpNDJyGZ-p0OxJJC2-Y-Jsh_nEgiIlfK-O2-JDA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T06:12:13.868021+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: git2-curl
+  version: 0.21.0
+  digest: 6MveRZFGfy4oe81OmhhXu8XoT9nN-4zk6KhPtk5ZN3k
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  Small, focused crate (292 lines of library code) from the official rust-lang/git2-rs
+  project providing a libcurl-based HTTP transport backend for git2-rs.
+  
+  Source verified: all files match upstream at VCS SHA 14cdc1573c29339ef1a00b3251d3a8bc0acaa52f.
+  
+  One justified unsafe block (pub unsafe fn register) inherited from git2::transport::register,
+  well-documented. No build.rs, no proc macros, no direct FFI, no process spawning, no runtime
+  env var access. Only compile-time env!("CARGO_PKG_VERSION") for User-Agent string.
+  
+  Network access is the crate's purpose -- it implements git smart HTTP transport using a
+  caller-provided curl::easy::Easy handle. follow_location(true) is enabled for redirect
+  support. HTTP response codes and Content-Type headers are validated.
+  
+  Dependencies are all well-known ecosystem crates (curl, git2, log, url).
+  No red flags found. Code is clear, well-commented, and does exactly what it claims.
+----- SIGN CREV PROOF -----
+0xA9Fh2WjYyd01m2ifYgcYYMLRyJ4URKYEyUhCn1zeTiGh8jdx22H0RnK_Isswqf_hZrIe5OUe34w9BGFgN3DQ
+----- END CREV PROOF -----
+
