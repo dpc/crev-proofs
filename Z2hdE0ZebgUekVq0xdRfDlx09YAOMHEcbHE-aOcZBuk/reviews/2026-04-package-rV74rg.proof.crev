@@ -1321,3 +1321,69 @@ comment: |-
 KB_hC8GM9XY972_-vxYsbHwjqBIWisABXIk5QwfAt6T1YNK0JNs2QMKOKJ4I_xkVsiw5s74KVzOhGkV3nHhvAg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T05:34:11+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: crates-io
+  version: 0.40.17
+  digest: 4wBUGaS5D8bgL8bRggnMWKOGdoJU9p6lPFkGtauVs-Y
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: crates-io 0.40.17
+  
+  - Upstream: https://github.com/rust-lang/cargo (crates/crates-io)
+  - Upstream commit: 85eff7c80277b57f78b11e28d14154ab12fcf643
+  - Verification: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: medium** (434 LoC, 1 file, read in full.)
+  
+  Official Cargo team crate. HTTP client for crates.io registry API using curl. Supports
+  publish, search, yank/unyank, and owner management.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Dependencies**: curl, percent-encoding, serde, serde_json, thiserror, url. Justified.
+  - **FFI**: None directly (curl handles libcurl FFI). Positive.
+  - **`unsafe`**: Zero. Positive.
+  
+  ### Red-flag scan
+  
+  Clean. No unsafe, no process spawning, no env access. Network via curl is the crate's
+  purpose. Token validation in check_token() prevents HTTP header injection. Header
+  callback rejects newlines to prevent header injection from server responses.
+  
+  ### Architecture
+  
+  Registry wraps curl::Easy. Methods for each API operation. publish() uses length-prefixed
+  wire format (LE u32 JSON + LE u32 tarball). handle() collects response, checks for API
+  errors or HTTP status codes.
+  
+  ### Minor observations
+  
+  - assert! on server "ok" field could be Result instead (panics on false).
+  - Read errors in upload callback silently converted to EOF (matches curl contract).
+  
+  ## Rating rationale
+  
+  Positive: official Cargo team crate, zero unsafe, good security practices (token
+  validation, header injection prevention), clean HTTP client code.
+----- SIGN CREV PROOF -----
+ECs19Tb9VnMayTjC7h_mn9NpqllKG3UoNx9agcWo2uj1_LZHzQhXJsAn8R0EgAmow_OaBg-m9-QY97HdDQ-XBg
+----- END CREV PROOF -----
+
