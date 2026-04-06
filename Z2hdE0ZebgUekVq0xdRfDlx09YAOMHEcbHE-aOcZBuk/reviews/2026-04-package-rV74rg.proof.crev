@@ -992,3 +992,76 @@ comment: |-
 abpafsryrjAvbsl-Dz-zvnBvoh5Olwx54NJNvaVranPnVANC8bDDiICSQJDQvI9nUsOv8TNXWSL46z1LHq3PDQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T05:21:21+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: syn-inline-mod
+  version: 0.6.0
+  digest: j4e_Cj5yZRP6fbgGKBP8mABcQoOHqKxDZtHaI93ETmE
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: syn-inline-mod 0.6.0
+  
+  - Upstream repository: https://github.com/TedDriggs/syn-inline-mod
+  - Upstream commit verified: ab3e8ca39deeeb16125eb71618b120fa3fbde30f
+  - Verification outcome: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: medium** (758 LoC, 4 files, all read in full.)
+  
+  **Claims baseline:** Inlines `mod foo;` declarations in Rust source by reading referenced
+  files from disk, producing a `syn::File` with all modules recursively inlined. Used for
+  source analysis.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Proc macros**: None. Uses syn/proc-macro2 as libraries only. Positive.
+  - **Dependencies**: `syn`, `proc-macro2` — both justified and well-known.
+  - **FFI**: None. Positive.
+  - **`unsafe`**: Zero. Positive.
+  
+  ### Red-flag scan
+  
+  Clean — no unsafe, no process spawning, no env access, no network, no FFI. Filesystem
+  access (`read_to_string`, `Path::exists`) is the crate's stated purpose.
+  
+  ### Architecture
+  
+  Clean separation: FileResolver trait abstracts I/O (enables testing without disk),
+  ModContext/ModSegment handle path resolution (both `foo.rs` and `foo/mod.rs` conventions),
+  Visitor walks the syn AST and recursively inlines modules, InlinerBuilder is the public
+  API. Error handling is graceful — individual module failures are recorded without aborting.
+  
+  ### Minor observations
+  
+  - `unwrap()` on `file_stem()` in ModContext could theoretically panic but paths always
+    come from prior file reads.
+  - `cfg_attr` handling is a documented known limitation (test marked `should_panic`).
+  
+  ## Cross-check
+  
+  No prior reviews at any version.
+  
+  ## Rating rationale
+  
+  Positive: clean, well-structured code with zero unsafe, clear separation of concerns,
+  comprehensive tests, and does exactly what it claims.
+----- SIGN CREV PROOF -----
+HviwCfS2062Zy430jD_oJrpomHfam97e7d2UkPPQBZ9mNK7hXLKylISHMLTdta-45le9f42z78Bzdhm-31WCDQ
+----- END CREV PROOF -----
+
