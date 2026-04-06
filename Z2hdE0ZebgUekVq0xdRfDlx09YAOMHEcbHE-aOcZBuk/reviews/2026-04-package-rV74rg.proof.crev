@@ -2044,3 +2044,47 @@ comment: |-
 J1OqRVDhpwJZfDk17NXWvKnE2PCRiIrue8JZsqVMDcL3qML86kLIfLbjdZlRlIHRWLKCMQhx6p_5CRTCbqOgAA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-05T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: shell-escape
+  version: 0.1.5
+  digest: aRvbB8m7HDX6Xx0CLfKREmHN1BgicrmOYIy-U9VN_TA
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  Tiny single-file crate (134 lines) for escaping strings for shell use.
+  Zero dependencies, no unsafe, no build.rs, no proc macros, no FFI.
+  
+  Source verified: crates.io SHA 9bfec037f6fde99a7e4caf029919b0bb4b808c85
+  matches upstream tag v0.1.5 exactly. v0.1.5 is the latest release.
+  
+  Unix escaping uses sound single-quote wrapping with correct handling of
+  embedded single quotes and csh ! history expansion. Whitelist approach
+  for safe characters is conservative and appropriate.
+  
+  Windows escaping correctly implements the CommandLineToArgvW algorithm
+  (backslash doubling before quotes, trailing backslash doubling). Note:
+  does NOT escape cmd.exe metacharacters (%, ^, |, &, <, >) which is a
+  known limitation of this approach, not a bug.
+  
+  Code originally derived from the Rust project (see copyright header).
+  Author sfackler is a well-known Rust ecosystem contributor.
+  
+  No red flags. Recommend for use.
+----- SIGN CREV PROOF -----
+RB_ckxN-Ntzpa-fyYgjWfxB142lwT-ShcYRni_Bgi_qADKiVcnH5U4-L18QUy2I8XSdqGqLOGkY48LMHjroBAQ
+----- END CREV PROOF -----
+
