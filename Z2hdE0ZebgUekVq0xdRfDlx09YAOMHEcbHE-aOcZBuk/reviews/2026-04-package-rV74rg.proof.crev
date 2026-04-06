@@ -1065,3 +1065,72 @@ comment: |-
 HviwCfS2062Zy430jD_oJrpomHfam97e7d2UkPPQBZ9mNK7hXLKylISHMLTdta-45le9f42z78Bzdhm-31WCDQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T05:23:58+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: cargo-credential
+  version: 0.4.9
+  digest: 7tvjuBWa_jQnTmo_O6YHQbQA_oxUfLaWS5k656M_ui8
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: cargo-credential 0.4.9
+  
+  - Upstream: https://github.com/rust-lang/cargo (credential/cargo-credential)
+  - Upstream commit: 840b83a10fb0e039a83f4d70ad032892c287570a
+  - Verification: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: medium** (653 LoC, 4 files, all read in full.)
+  
+  Official Cargo team crate from rust-lang/cargo. Implements the JSON credential helper
+  protocol: CredentialHello → CredentialRequest → CredentialResponse.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Proc macros**: None (serde/thiserror derive are external). Positive.
+  - **Dependencies**: serde, serde_json, thiserror, anyhow, time, libc (Unix),
+    windows-sys (Windows). All justified.
+  - **FFI**: Unix dup/dup2/close, Windows GetStdHandle/SetStdHandle — for console
+    redirection during interactive credential prompts.
+  - **`unsafe`**: Four blocks in stdio.rs, all standard POSIX/Win32 fd/handle manipulation
+    with RAII guards for cleanup. Error-checked. Sound.
+  
+  ### Red-flag scan
+  
+  Clean. No network, no env vars, no process spawning. Opens /dev/tty (Unix) or CONIN$/
+  CONOUT$ (Windows) for interactive prompts — justified. Secret<T> properly redacts
+  values in Debug output.
+  
+  ### Architecture
+  
+  main() handles protocol loop: write hello → read request → redirect stdio to console
+  (ReplacementGuard RAII) → call Credential::perform → write response. Error type
+  supports full chain round-tripping through JSON serialization.
+  
+  ## Cross-check
+  
+  No prior reviews at any version.
+  
+  ## Rating rationale
+  
+  Positive: well-structured official Cargo crate, sound unsafe blocks, good security
+  practices (Secret<T> redaction), comprehensive error handling with chain preservation.
+----- SIGN CREV PROOF -----
+vquxSfyYS71d90B56FNe7ajknrQTpqpndf79x_DyxBHjrqwWRPkHKW2FGGdwOvxPAammEyWRYVhNkX4s_yH_AQ
+----- END CREV PROOF -----
+
