@@ -2088,3 +2088,24 @@ comment: |-
 RB_ckxN-Ntzpa-fyYgjWfxB142lwT-ShcYRni_Bgi_qADKiVcnH5U4-L18QUy2I8XSdqGqLOGkY48LMHjroBAQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-05T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: cargo-platform
+  version: 0.3.1
+  revision: 840b83a10fb0e039a83f4d70ad032892c287570a
+  digest: DVMRfB26_wF0PM3a3pfl7IQw_h26t9V2dwaclySZiHw
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+----- SIGN CREV PROOF -----
+yCSVInZqqCDXzzhRhETSnCmmHuLxdCM_YxdV2CI92nL1Da_UaISNAKF1BU40eAAqzZGsl3QyFD4jEM7h5v11Dw
+----- END CREV PROOF -----
+
