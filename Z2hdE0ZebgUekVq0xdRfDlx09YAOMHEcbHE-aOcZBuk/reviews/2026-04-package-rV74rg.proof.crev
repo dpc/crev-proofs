@@ -542,3 +542,154 @@ comment: |-
 uOfNIMHf-LypHNLtM6pKCWBijariWkB7W6fqrd2-4fBXx_xqqZsKz_CsIALITgtha4xy5SxnDnV6hcuLDxXRCw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T05:06:49+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: table_formatter
+  version: 0.6.1
+  digest: B3xoyNMPY9M0t_dgMBKFg-Cl8ZBqC69Q1SbkvogP5Xg
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: table_formatter 0.6.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/table_formatter-0.6.1
+  - Upstream repository: https://github.com/Embers-of-the-Fire/rust-table-formatter
+  - Upstream commit verified: 0feb602 (commit "bump: new version: 0.6.1 (#15)")
+  - Upstream tag for version: n/a (no tags in upstream repo)
+  - Verification outcome: partial
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `dad075a52ba3555a73857086dd7ec7e579712a5d` but this
+  commit does not exist in the upstream repository (partial clone cannot fetch it — "not our
+  ref"). No version tags exist in the upstream repo at all.
+  
+  Falling back to commit `0feb602` ("bump: new version: 0.6.1 (#15)"):
+  
+  - All files in `src/` are **identical** between crate tarball and upstream at this commit,
+    modulo CRLF→LF line ending differences. The tarball has CRLF line endings while upstream
+    has LF — this is a benign publishing artifact (likely published from Windows or with
+    `.gitattributes` auto-crlf).
+  - `Cargo.toml.orig` vs upstream `Cargo.toml`: **identical** (ignoring line endings).
+  - Files only in tarball: `Cargo.toml.orig`, `.cargo_vcs_info.json`, `Cargo.lock` — expected.
+  - Files only upstream: `ci/`, `commitlint.config.js`, `.gitignore`, `tests/` — excluded
+    by the `include` key in `Cargo.toml`.
+  
+  **Conclusion:** Source code matches upstream at commit `0feb602` (line-ending normalisation
+  only). The vcs_info sha mismatch and lack of version tags are bookkeeping issues, not
+  tampering indicators. The vcs_info sha may correspond to a force-pushed or squashed commit.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** (765 LoC Rust; read every file end-to-end.)
+  
+  **Claims baseline:** Crate claims to be "a simple text table formatter" — it formats
+  plain-text tables with alignment, borders, cell merging, overflow handling, and optional
+  ANSI color formatting. It also supports markdown output. No network, no filesystem, no
+  env vars, no subprocesses expected.
+  
+  ### File map
+  
+  - `src/lib.rs` (91 lines): **read in full** — module declarations and crate-level docs
+  - `src/error.rs` (35 lines): **read in full** — error enum using thiserror
+  - `src/builder.rs` (110 lines): **read in full** — macros (`table!`, `cell!`, `fmt!`) and tests
+  - `src/table/mod.rs` (37 lines): **read in full** — module re-exports and `FormatterFunc` enum
+  - `src/table/settings.rs` (82 lines): **read in full** — `Overflow`, `Align`, `Padding`, `Border`, `Renderer` types
+  - `src/table/content.rs` (143 lines): **read in full** — `Content` enum and rendering logic
+  - `src/table/cell.rs` (216 lines): **read in full** — `Cell` struct with rendering
+  - `src/table/table.rs` (355 lines): **read in full** — `Table` struct, validation, render methods
+  - `README.md`: **read in full**
+  - `Cargo.toml.orig`: **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc macros**: None (`proc-macro = true` not set). The `table!`, `cell!`, and `fmt!`
+    macros are declarative `macro_rules!` — these are expanded at compile time by rustc
+    itself, not arbitrary code. Positive.
+  - **Dependencies**: `thiserror` (well-known error derive macro), `itertools` (well-known
+    iterator utilities), `colored` (ANSI color formatting). All three are justified by the
+    crate's stated purpose (formatting text tables with colors). No surprising deps.
+  - **FFI surface**: None. Positive.
+  - **`unsafe` blocks**: Zero. Positive.
+  
+  ### Red-flag scan
+  
+  - No `unsafe`, no `transmute`, no raw pointers.
+  - No `Command::new` or process spawning.
+  - No `std::env::var` or env access.
+  - No network libraries.
+  - No `include_bytes!` or `include_str!`.
+  - No obfuscated strings or binary blobs.
+  - No `extern "C"` or FFI.
+  
+  ### Architecture summary
+  
+  The crate provides a `Table` struct that holds a grid of `Cell` values. Each `Cell` contains
+  a `Content` (text, splitter line, or empty), plus alignment, padding, overflow, width, merge
+  (column span), and formatter settings. Tables can be rendered in three modes: Normal (with
+  ANSI bold borders), Raw (plain text), or Markdown. Rendering writes to any `impl io::Write`.
+  
+  Key data flow: `Table::render()` → validates row lengths → computes column widths →
+  iterates rows/cells → `Cell::render_with_width()` → `Content::render_with_width()` →
+  applies padding/alignment → applies formatter chain (for ANSI colors) → writes to buffer.
+  
+  The `FormatterFunc` enum wraps either a plain function pointer or a `Rc<Box<dyn Fn>>` for
+  closure-based formatters. The `fmt!` macro boxes closures into `FormatterFunc::Boxed`.
+  
+  ### Reconciliation against claims
+  
+  The crate does exactly what it claims: formats text tables. Capabilities exercised:
+  - I/O: writes to `impl io::Write` — justified, this is the output.
+  - ANSI escape codes via `colored` — justified, the crate explicitly supports colored output.
+  - No other capabilities (no network, no filesystem, no env, no processes, no FFI, no unsafe).
+  
+  No capability exceeds the stated purpose.
+  
+  ### Minor observations
+  
+  - The `render()` and `render_raw()` methods share substantial duplicated code (~80 lines
+    each, differing only in the `.bold()` calls on borders). This is a code quality observation,
+    not a security concern.
+  - `Content::render_with_width()` uses char-based truncation which could produce
+    unexpected results with multi-byte grapheme clusters (e.g., emoji). Not a security issue
+    but a potential UX surprise.
+  - The `Err(...)? ` pattern is used instead of `return Err(...)` throughout `table.rs` —
+    unconventional but functionally equivalent due to `?` operator.
+  - `set_formatter` on `Cell` (line 76-78) takes `mut self` instead of `&mut self`, unlike
+    all other setters. This looks like a bug (inconsistent API) but has no security impact.
+  - Line endings in the published tarball are CRLF while upstream is LF — benign but notable.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `tests/` directory: excluded from crate tarball by the `include` key. Not reviewed.
+  - LICENSE files: not reviewed in detail (standard MIT and Apache-2.0).
+  - The `colored` and `itertools` dependencies were not reviewed themselves — they are
+    well-known, widely-used crates.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+eHftI1NY0A-koEDIc-NVH6jfnQv9v4HvkjeEiz_uvXQRDMBwgjmIh4VxTMsnxXH8Sk4kgSQ9fq9rxDZGGDVdDQ
+----- END CREV PROOF -----
+
