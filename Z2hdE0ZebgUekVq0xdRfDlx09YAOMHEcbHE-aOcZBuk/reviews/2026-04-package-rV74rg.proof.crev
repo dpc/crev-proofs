@@ -831,3 +831,89 @@ comment: |-
 p3GIbdyW989JUA1TTJLPPKRKfdFoUATTTFS6Hbfhv0TaQaToiJhLMK5g1KTh7e_6p39PKHL2Es3L25AY8Z-_CA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T05:15:41+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: rsqlite-vfs
+  version: 0.1.0
+  digest: W1b9i4VAIOr_gUM4Uvel-kpl2MxQKyjilaNeXKb232c
+review:
+  thoroughness: low
+  understanding: medium
+  rating: neutral
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: rsqlite-vfs 0.1.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rsqlite-vfs-0.1.0
+  - Upstream repository: https://github.com/Spxg/sqlite-wasm-rs
+  - Upstream commit verified: HEAD (c87efde) — vcs_info sha not found upstream
+  - Upstream tag for version: n/a (no version tags)
+  - Verification outcome: partial
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `6ea82fa491abcb9e89965e4e84f342a2c0a1f7b6` with
+  `path_in_vcs: "crates/rsqlite-vfs"`, but this sha does not exist in the upstream repository.
+  Comparing against upstream HEAD: all source files are bit-for-bit identical. Cargo.toml.orig
+  differs only by a `keywords` field added upstream post-publish.
+  
+  ## Code review findings
+  
+  **Thoroughness level: low** (1924 LoC; ~530 lines are FFI constants. Read all files but
+  FFI file was skimmed after confirming it's standard SQLite bindgen output.)
+  
+  **Claims baseline:** Crate provides `no_std` traits and types for building custom SQLite
+  VFS implementations, plus a built-in memory VFS. Designed for WASM targets.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Proc macros**: None. Positive.
+  - **Dependencies**: `hashbrown` (no_std HashMap), `thiserror` (error derive). Justified.
+  - **FFI surface**: Links against SQLite C library (sqlite3_vfs_find, sqlite3_vfs_register,
+    sqlite3_vfs_unregister). This is the crate's entire purpose.
+  - **`unsafe` blocks**: Extensive, as expected for C FFI. Key patterns: pointer casts for
+    sqlite3_file ↔ SQLiteVfsFile, Box::leak/from_raw for C ownership, from_raw_parts for
+    buffer access, from_utf8_unchecked for name strings. All follow standard FFI patterns
+    with correct pairing of leak/reclaim.
+  
+  ### Red-flag scan
+  
+  - No network calls, no env var access, no process spawning.
+  - No obfuscated strings or binary blobs.
+  - `from_utf8_unchecked_mut` in `SQLiteVfsFile::name()` bypasses validation but the
+    invariant (name originates from Rust String) is maintained by construction.
+  
+  ### Architecture summary
+  
+  Layered abstraction: ffi types → VfsFile trait → VfsStore trait → SQLiteIoMethods trait →
+  SQLiteVfs trait. Memory VFS uses HashMap<String, MemFile> with chunked storage.
+  
+  Rating is `neutral` rather than `positive` because:
+  - Extensive unsafe code whose correctness depends on SQLite's C-side contract
+  - `low` thoroughness (FFI constants file only skimmed)
+  - Cannot fully verify safety without reviewing the C caller side
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `ffi.rs`: Only skimmed. Standard bindgen output.
+  - `hashbrown` and `thiserror` not reviewed.
+  - Safety of C FFI callbacks relies on SQLite's documented contract.
+----- SIGN CREV PROOF -----
+szmoRLdhofQaDXZBo1zAWNDhg1Mwm6oR83wY0zcFrFYxx_0zu46UPbx060jBS5tZfnzSo2cRv-DSPxxZAD-VCw
+----- END CREV PROOF -----
+
