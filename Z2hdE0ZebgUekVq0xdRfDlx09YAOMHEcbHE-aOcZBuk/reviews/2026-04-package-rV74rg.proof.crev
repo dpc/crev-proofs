@@ -1747,3 +1747,70 @@ comment: |-
 Lo0xmU2cuXPTV65Ce-9100kNINAxTtbrYrQJ6tH2zNCBCOMnZUFkHmdJ5Nxy__32MxZU_tUeOooPQqJcvI9NAg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T06:52:39+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: http-auth
+  version: 0.1.10
+  digest: iGwFXfaUxeLciGQ21HRT7dVUiTifPTgsHboJWdUa6yg
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: http-auth 0.1.10
+  
+  - Upstream: https://github.com/scottlamb/http-auth
+  - Upstream commit: 4f39f8be586b7cc29c97c0bad27e73aa4534293e
+  - Verification: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: medium** (2557 LoC, 5 files. Read lib.rs, basic.rs, parser.rs header
+  in full; skimmed digest.rs and table.rs.)
+  
+  HTTP authentication: parses WWW-Authenticate challenge lists per RFC 7235, responds to
+  Basic (RFC 7617) and Digest (RFC 7616) challenges.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Dependencies**: Only `memchr` required; crypto deps (base64, digest, md-5, sha2, rand)
+    are feature-gated. All well-known.
+  - **FFI**: None. Positive.
+  - **`unsafe`**: Zero. Positive.
+  
+  ### Red-flag scan
+  
+  Clean. No unsafe, no network I/O, no env, no process spawning, no filesystem.
+  Pure computation library — parses and generates HTTP auth headers from string slices.
+  
+  ### Architecture
+  
+  State-machine parser for RFC 7235 (no backtracking, fuzz-tested against nom reference).
+  BasicClient encodes credentials via base64. DigestClient implements RFC 7616 digest.
+  PasswordClient enum dispatches between Basic and Digest.
+  
+  ## Cross-check
+  
+  No prior reviews at any version.
+  
+  ## Rating rationale
+  
+  Positive: zero unsafe, well-documented RFC-compliant implementation, minimal required
+  dependencies, fuzz-tested parser. digest.rs only skimmed (917 lines), hence medium
+  thoroughness.
+----- SIGN CREV PROOF -----
+AGw5olCNJAR7vWbNjCbuVAAzDvuS4llxlHydkxilO8PLJZPcgUFyb-S_NUYwcAmAwYW5hqlNkofmaubmlPtdDQ
+----- END CREV PROOF -----
+
