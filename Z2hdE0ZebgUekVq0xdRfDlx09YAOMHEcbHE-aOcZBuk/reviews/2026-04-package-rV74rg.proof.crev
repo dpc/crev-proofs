@@ -1256,3 +1256,68 @@ comment: |-
 Xx8Gm0wnFqBQ5vugaouRJG-UxJc1zFQaiXFAl51vGO2b6jZHDxrUSEujssUlAmhOIYWNod26rJnQPVv7TnOQAg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T05:31:15+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: cargo-credential-macos-keychain
+  version: 0.4.20
+  digest: aQaXLOGs945ElOzDu4fVTWkAWYutzs4YtCx_D-q0cow
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: cargo-credential-macos-keychain 0.4.20
+  
+  - Upstream: https://github.com/rust-lang/cargo (credential/cargo-credential-macos-keychain)
+  - Upstream commit: 85eff7c80277b57f78b11e28d14154ab12fcf643
+  - Verification: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: high** (74 LoC, 1 file, every line examined.)
+  
+  Official Cargo team crate. Stores Cargo registry tokens in macOS Keychain via the
+  `security-framework` crate (safe Rust bindings to Security.framework).
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Dependencies**: cargo-credential, security-framework. Both justified.
+  - **FFI**: None directly — all Keychain access through safe security-framework API.
+  - **`unsafe`**: Zero. Positive. All FFI handled by security-framework internally.
+  
+  ### Red-flag scan
+  
+  Clean. No unsafe, no network, no env access, no process spawning. macOS-only via
+  cfg gate; other platforms get UnsupportedCredential.
+  
+  ### Architecture
+  
+  MacKeychain implements Credential for Get (find_generic_password), Login
+  (add_generic_password or set_password), Logout (delete). Service name:
+  `cargo-registry:{url}`. Account: empty string.
+  
+  ### Minor observations
+  
+  - Login action silently swallows non-NotFound errors during the find phase — minor
+    bug but not a security issue.
+  
+  ## Rating rationale
+  
+  Positive: official Cargo team crate, zero unsafe, tiny and focused, clean use of
+  security-framework safe API.
+----- SIGN CREV PROOF -----
+KB_hC8GM9XY972_-vxYsbHwjqBIWisABXIk5QwfAt6T1YNK0JNs2QMKOKJ4I_xkVsiw5s74KVzOhGkV3nHhvAg
+----- END CREV PROOF -----
+
