@@ -2010,3 +2010,37 @@ comment: |-
 kcCYtefz1zJjFBku0iA2iHmScoltOpSGvYH1QtmBmh5ARUwmm5vc6hBQWD60dR0YlJzUfbo9V2oIKOfjjI5NDw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-05T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: is_executable
+  version: 1.0.5
+  revision: ee6ad10070a9fc4786128e0f3ee5d343b957b84f
+  digest: PvYcUlqPy1S-yklFxkcqFcX76TSNkSBR36whbmDne10
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  Small single-file crate (137 lines) checking if a path is an executable file.
+  Extension trait on std::path::Path plus a convenience free function.
+  Unix impl: safe Rust only, checks permission bits. No dependencies.
+  Windows impl: 2 unsafe blocks for GetBinaryTypeW FFI via windows-sys. Correct usage.
+  No build.rs, no proc macros, no network access.
+  WASI/Wasm: always returns false (reasonable).
+  Source verified against upstream github.com/fitzgen/is_executable at VCS commit.
+  diff shows exact match between crates.io and upstream.
+----- SIGN CREV PROOF -----
+J1OqRVDhpwJZfDk17NXWvKnE2PCRiIrue8JZsqVMDcL3qML86kLIfLbjdZlRlIHRWLKCMQhx6p_5CRTCbqOgAA
+----- END CREV PROOF -----
+
