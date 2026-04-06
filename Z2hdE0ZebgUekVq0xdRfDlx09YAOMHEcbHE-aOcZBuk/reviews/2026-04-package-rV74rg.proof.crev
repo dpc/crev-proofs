@@ -917,3 +917,78 @@ comment: |-
 szmoRLdhofQaDXZBo1zAWNDhg1Mwm6oR83wY0zcFrFYxx_0zu46UPbx060jBS5tZfnzSo2cRv-DSPxxZAD-VCw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T05:19:21+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: crates_io_api
+  version: 0.12.0
+  digest: n_g6iUNn14WwAFhBfPZwNCvJb0r_78rOmR0F_jlbNWI
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: crates_io_api 0.12.0
+  
+  - Upstream repository: https://github.com/theduke/crates-io-api
+  - Upstream commit verified: 29ece31bf9a804ca8b744a40631b4f3df31f3b69
+  - Verification outcome: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: medium** (1337 LoC, 5 files, all read in full.)
+  
+  **Claims baseline:** API client for crates.io — async and sync HTTP clients for querying
+  crate metadata, versions, deps, owners, downloads, reverse deps.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Proc macros**: None (serde_derive is external). Positive.
+  - **Dependencies**: reqwest, serde, serde_json, chrono, url, futures, tokio,
+    serde_path_to_error. All justified for an HTTP API client.
+  - **FFI**: None. Positive.
+  - **`unsafe`**: Zero. Positive.
+  
+  ### Red-flag scan
+  
+  Clean — no unsafe, no process spawning, no env access, no FFI, no obfuscated strings.
+  Network access via reqwest is the crate's stated purpose.
+  
+  ### Architecture
+  
+  Two clients (AsyncClient, SyncClient) sharing the same pattern: URL construction →
+  rate-limit wait → HTTP GET → status check → JSON deserialize → typed result. Rate
+  limiting via mutex + timestamp. URL builders hardcode `https://crates.io/api/v1/`.
+  Types module is pure serde structs matching crates.io JSON schema.
+  
+  ### Minor observations
+  
+  - `SyncClient::full_crate` will panic on `versions[0]` if versions is empty (bug, not
+    security issue).
+  - Rate limiter measures time between request starts, slightly more aggressive than
+    between completions.
+  
+  ## Cross-check
+  
+  One prior review of v0.3.0 by dpc: rated positive/low/medium. Consistent with my findings.
+  Crate has grown (async client, streaming, more endpoints) but approach remains clean.
+  
+  ## Rating rationale
+  
+  Positive: clean code, zero unsafe, no red flags, does exactly what it claims. Network
+  access is justified and confined to crates.io API.
+----- SIGN CREV PROOF -----
+abpafsryrjAvbsl-Dz-zvnBvoh5Olwx54NJNvaVranPnVANC8bDDiICSQJDQvI9nUsOv8TNXWSL46z1LHq3PDQ
+----- END CREV PROOF -----
+
