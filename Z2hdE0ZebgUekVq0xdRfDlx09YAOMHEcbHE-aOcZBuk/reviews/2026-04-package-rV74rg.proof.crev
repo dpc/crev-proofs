@@ -1387,3 +1387,66 @@ comment: |-
 ECs19Tb9VnMayTjC7h_mn9NpqllKG3UoNx9agcWo2uj1_LZHzQhXJsAn8R0EgAmow_OaBg-m9-QY97HdDQ-XBg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T06:06:48+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: grep-matcher
+  version: 0.1.7
+  digest: ovP4Rtk4qsazL30h1VtpvE5vdWCfB4Hs7iyz-TfNBT0
+review:
+  thoroughness: medium
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: grep-matcher 0.1.7
+  
+  - Upstream: https://github.com/BurntSushi/ripgrep (crates/matcher)
+  - Upstream commit: d0251c77fe96412310110aeb9383f20436a9f97e
+  - Verification: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: medium** (1019 LoC, 2 files, both read in full.)
+  
+  From BurntSushi's ripgrep project. Defines the `Matcher` trait — an abstract interface
+  for line-oriented text search with support for find, captures, replacement, and
+  interpolation.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Dependencies**: `memchr` only — justified for fast byte search in interpolation.
+  - **FFI**: None. Positive.
+  - **`unsafe`**: Zero. Positive.
+  
+  ### Red-flag scan
+  
+  Clean. Pure computation library — no I/O, no filesystem, no network, no env access, no
+  process spawning, no FFI, no unsafe. Single dependency (memchr).
+  
+  ### Architecture
+  
+  `Matcher` trait: two required methods (find_at, new_captures), many default impls for
+  iteration, captures, replacement. Uses internal iteration (push model) for performance.
+  `interpolate` function handles `$N`/`$name`/`${name}` replacement references.
+  Supporting types: Match (range), LineTerminator, ByteSet (256-bit), Captures trait.
+  
+  ## Rating rationale
+  
+  Strong: pure trait definition library from a well-known author, zero unsafe, zero
+  dependencies beyond memchr, no I/O of any kind. Comprehensive default implementations
+  with correct empty-match handling.
+----- SIGN CREV PROOF -----
+m2Rf9egZTMBJRBZZ_gR7qknj3IMVyqsGA_hf5sTswTVhcX3HpNDJyGZ-p0OxJJC2-Y-Jsh_nEgiIlfK-O2-JDA
+----- END CREV PROOF -----
+
