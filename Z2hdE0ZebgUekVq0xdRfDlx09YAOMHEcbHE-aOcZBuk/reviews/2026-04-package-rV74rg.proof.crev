@@ -1601,3 +1601,82 @@ comment: |-
 0XlyJigL5m1LGqmyETuFkK4nDZM5SvqXPTg4HMfTtqGFbOL0r5G_vr2FgcDrCxM6LHUnzUl2IexW0kfITAHxBA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T06:45:17+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: aes-siv
+  version: 0.7.0
+  digest: tdxndqP4cdxfCKAlbpLHTJbsFQWyxi5kkAF3lSMg8jA
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: aes-siv 0.7.0
+  
+  - Upstream: https://github.com/RustCrypto/AEADs (aes-siv)
+  - Upstream tag: aes-siv-v0.7.0 (commit 6571311)
+  - Verification: pass (source bit-for-bit identical at tag)
+  
+  ## Code review findings
+  
+  **Thoroughness: high** (~590 LoC, 2 files, every function examined.)
+  
+  Pure Rust `#![no_std]` implementation of RFC 5297 AES-SIV. From the RustCrypto project.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Proc macros**: None. Positive.
+  - **Dependencies**: All RustCrypto ecosystem (aead, aes, cipher, cmac, ctr, dbl, digest,
+    zeroize). All justified.
+  - **FFI**: None. Positive.
+  - **`unsafe`**: Zero. Positive. All crypto ops use safe RustCrypto trait abstractions.
+  
+  ### Red-flag scan
+  
+  Clean. No unsafe, no I/O, no network, no env, no process spawning, no FFI. Pure
+  `#![no_std]` computation library.
+  
+  ### Architecture
+  
+  Two layers: `Siv<C, M>` (core RFC 5297 implementation) and `SivAead<C, M>` (AEAD
+  wrapper). Key split: first half → MAC, second half → AES-CTR encryption. `s2v` function
+  implements the vectorized PRF per RFC 5297 Section 2.4.
+  
+  ### Cryptographic correctness
+  
+  - **Constant-time tag comparison** via `CtOutput` — prevents timing side-channels.
+  - **Key zeroization** on `Drop` — prevents key leakage after use.
+  - **Re-encryption on auth failure** — prevents leaking unauthenticated plaintext.
+  - **IV bit clearing** (`iv[8] &= 0x7f; iv[12] &= 0x7f`) — matches RFC 5297 spec.
+  - **MAX_HEADERS (126)** check in `s2v` — per RFC limit.
+  - Test vectors from RFC 5297 and Wycheproof in `tests/` directory.
+  
+  ### Reconciliation against claims
+  
+  Does exactly what it claims. Pure computation, no I/O, all deps from RustCrypto.
+  
+  ## Cross-check
+  
+  No prior reviews at any version.
+  
+  ## Rating rationale
+  
+  Positive (not strong because crypto code correctness ultimately requires formal
+  verification, and this is an LLM review). Zero unsafe, correct security practices,
+  well-structured RFC implementation.
+----- SIGN CREV PROOF -----
+wnGbiRPo_XVJGn-MCJbm5_n0tqnb02yKxtwkoaM3hsAUmEA71iUoVzp8TFlzdhkr0Oi4mQoRfmyZlJVJs_h_Cg
+----- END CREV PROOF -----
+
