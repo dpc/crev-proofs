@@ -1814,3 +1814,67 @@ comment: |-
 AGw5olCNJAR7vWbNjCbuVAAzDvuS4llxlHydkxilO8PLJZPcgUFyb-S_NUYwcAmAwYW5hqlNkofmaubmlPtdDQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-06T06:50:05+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: dunce
+  version: 1.0.5
+  digest: bxPIJJeHzBSlvrs1mk8sJXCCXFSJ-p1HZge63DyHx8E
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: dunce 1.0.5
+  
+  - Upstream: https://gitlab.com/kornelski/dunce
+  - Upstream commit: 1ee29a83526c9f4c3618e1335f0454c878a54dcf
+  - Verification: pass (source bit-for-bit identical)
+  
+  ## Code review findings
+  
+  **Thoroughness: high** (306 lines, 1 file, every line read.)
+  
+  Normalizes Windows UNC paths (`\\?\C:\foo`) to legacy format (`C:\foo`) when safe.
+  No-op on non-Windows. Zero dependencies. By Kornel (kornelski).
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None (explicitly disabled). Positive.
+  - **Dependencies**: Zero. Positive.
+  - **FFI**: None. Positive.
+  - **`unsafe`**: Zero. Positive.
+  
+  ### Red-flag scan
+  
+  Clean. No unsafe, no network, no env, no process spawning. Only I/O is
+  `std::fs::canonicalize` (read-only) in the `canonicalize` function.
+  
+  ### Architecture
+  
+  `simplified(path)` — pure computation, strips UNC prefix after checking all components
+  (valid filenames, no reserved DOS names, path length ≤ 260 UTF-16 code units).
+  `canonicalize(path)` — calls `fs::canonicalize` then `simplified`. On non-Windows,
+  `is_safe_to_strip_unc` is const fn returning false.
+  
+  Safety checks correctly handle: reserved names (CON, PRN, etc. with extensions and
+  trailing dots/spaces), invalid characters, path length limits, non-BMP Unicode.
+  Comprehensive test suite.
+  
+  ## Cross-check
+  
+  No prior reviews at any version.
+----- SIGN CREV PROOF -----
+q-_EHF-4kfEEgfYxTJZHOWucDi_a98Q85nTbIkyo70kdAA3G7WkOkCuh3MnONzhmhTaZ9k3VrHp2ec-8F5u9Dw
+----- END CREV PROOF -----
+
