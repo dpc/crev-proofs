@@ -7198,3 +7198,104 @@ comment: |-
 0GBfc_2zV3NGqUIHKDKEKse8wlvMci9YFrMNh2LFIPKNaJI6GPUYBuuG_1B1Kg3wUfVXJbuOHz9xaepc8ReMBw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T16:16:18+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: page_size
+  version: 0.6.0
+  digest: oLT--hW_3R6Nz1O9-LxWN688lSy314ubuNZ9QCIOwK0
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: page_size 0.6.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/page_size-0.6.0
+  - Upstream repository: https://github.com/Elzair/page_size_rs
+  - Upstream commit verified: ae67d388f3d34ac88136292901fc25e2b8c47af7
+  - Upstream tag for version: n/a (no tag for 0.6.0; commit message is "Bumped version to 0.6.0" and it is the HEAD of master)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/Elzair/page_size_rs at commit ae67d388f3d34ac88136292901fc25e2b8c47af7. `.cargo_vcs_info.json` sha matches the upstream HEAD. `diff -r --brief` between the crates.io source and the upstream checkout (excluding expected cargo-publish artifacts) shows zero differences. `Cargo.toml.orig` is byte-identical to the upstream `Cargo.toml`. No version tag exists for 0.6.0 (last tag is 0.5.0), but the commit message and Cargo.toml version field confirm this is the correct commit.
+  
+  ## Code review findings
+  
+  **Thoroughness level chosen: medium.** Crate has a single source file (`src/lib.rs`, 213 lines including tests). Small enough to read end-to-end.
+  
+  **Claims baseline:** Crate claims to provide a fast, cross-platform way to retrieve the memory page size. Supports Unix (via `libc::sysconf`), Windows (via `winapi::GetSystemInfo`), and WebAssembly (hardcoded 65536). Caches the result using `Once`. Also provides allocation granularity on Windows.
+  
+  **No `build.rs`.** Positive — no custom build script.
+  
+  **Not a proc-macro crate.** Positive.
+  
+  **Dependencies:**
+  - `libc` (unix only): justified — needed for `sysconf`.
+  - `winapi` with `sysinfoapi` feature (windows only): justified — needed for `GetSystemInfo`.
+  - `spin` (optional, for `no_std`): justified — provides `Once` without std.
+  - No surprising or unjustified dependencies.
+  
+  **Files read:**
+  - `src/lib.rs`: **read in full**
+  - `Cargo.toml.orig`: **read in full**
+  - `README.md`: **read in full**
+  
+  **Unsafe blocks (6 total):**
+  
+  1. Lines 81–84: `static mut PAGE_SIZE` written inside `Once::call_once` and read after. This is the classic `Once` + `static mut` pattern. It is sound because `call_once` guarantees the closure runs exactly once and all subsequent reads happen-after the write. However, this pattern is deprecated in modern Rust (the `static mut` triggers a future-compatibility warning). Not a soundness bug, but dated.
+  
+  2. Line 101: `sysconf(_SC_PAGESIZE) as usize`. FFI call to libc. `sysconf(_SC_PAGESIZE)` is defined by POSIX and always succeeds (returns a positive value). The cast to `usize` is safe because page size is always positive. Sound.
+  
+  3. Lines 132–135: Same `Once` + `static mut` pattern for Windows `get_helper`. Same analysis as #1. Sound but dated.
+  
+  4. Lines 152–155: Same pattern for Windows `get_granularity_helper`. Sound but dated.
+  
+  5. Lines 170–175: `mem::zeroed()` for `SYSTEM_INFO`, then `GetSystemInfo` writes into it. `SYSTEM_INFO` is a POD type and `GetSystemInfo` is a well-defined Windows API that always succeeds. Sound.
+  
+  6. Lines 180–185: Same pattern as #5 for `get_granularity`. Sound.
+  
+  **Red-flag scan:**
+  - No `transmute`, `from_raw`, raw pointer arithmetic.
+  - No `Command::new`, no shell invocation.
+  - No `std::env::var`, no environment variable access.
+  - No network libraries, no `include_bytes!`, no obfuscated strings.
+  - No base64/hex blobs, no large const byte arrays.
+  
+  **Conditional compilation observations:**
+  - WebAssembly `get_granularity_helper` (line 109–113) returns a hardcoded 65536. This is correct per the WebAssembly spec.
+  - The `#[cfg(not(any(unix, windows)))]` stub on line 191–195 returns a hardcoded 4096. This means on non-Unix, non-Windows, non-WASM targets, the crate silently returns 4096 without any actual system query. This is documented only in a comment ("4k is the default on many systems") but not in the public API docs or README. Minor issue — users on exotic platforms might get a wrong value without realizing it.
+  - There is no `get_granularity_helper` for the `#[cfg(not(any(unix, windows)))]` stub case, nor for the wasm `get_helper`. This would be a compile error on those targets. Since we're only reviewing what ships, and this crate primarily targets unix/windows/wasm, this is a minor completeness issue rather than a soundness problem.
+  
+  **Architecture summary:** Single-file crate with a simple structure: public API (`get()`, `get_granularity()`) delegates to platform-specific private modules (`unix`, `windows`) or hardcoded values (wasm, stub). Results are cached via `Once` for thread safety. The code is straightforward and does exactly what it claims — no hidden functionality, no surprising behavior.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The `static mut` + `Once` pattern is sound but triggers deprecation warnings in newer Rust editions. A modern rewrite would use `OnceLock` or `LazyLock`.
+  - Test coverage is minimal (just calls the functions, doesn't assert anything about the return values). Not a security concern but worth noting.
+  - The crate appears unmaintained (last commit is from the 0.6.0 bump, no activity since).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+rN6_IRwZ4ZVV2zXnk-xFutMcQlkwgLBMdIAt9pDhix0mSjHQJx1j-w4s2Ozd_ICSYZgY1tzSGGE6sIPB2dgiCA
+----- END CREV PROOF -----
+
