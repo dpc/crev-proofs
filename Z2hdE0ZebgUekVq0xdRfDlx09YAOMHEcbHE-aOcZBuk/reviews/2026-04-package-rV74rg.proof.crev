@@ -5553,3 +5553,172 @@ comment: |-
 D5CBKPkwuw2m2rmHJ7ZtMWriEU_45MGmuU4L86JWnO72-88D0329wImd1YB9tHQbMqN6zoVctsU3y0AP_38MDQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T02:13:12+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: fedimint-ldk-node
+  version: 0.6.1
+  digest: 3MsC0WxUNfoetBfm3RuRvJyNBkgaS4smQi9kB1g3r5A
+review:
+  thoroughness: low
+  understanding: low
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: fedimint-ldk-node 0.6.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fedimint-ldk-node-0.6.1
+  - Upstream repository: https://github.com/lightningdevkit/ldk-node/
+  - Upstream commit verified: 6f56103dd7996cbe73e619d417ed1f017a78c091 (commit message: "rename to fedimint-ldk-node")
+  - Upstream tag for version: v0.6.1 in upstream ldk-node points to 93858b372c7b (different — see below)
+  - Verification outcome: partial pass
+  
+  ## Claims baseline
+  
+  The crate claims to be "A ready-to-go node implementation built using LDK." — a
+  non-custodial Lightning node library providing a simple interface for running a
+  Lightning node with an integrated on-chain wallet. Network I/O (Lightning P2P,
+  Esplora/Electrum/Bitcoin RPC), filesystem I/O (persistence), and SQLite storage
+  are all expected capabilities.
+  
+  ## External verification
+  
+  This crate is a fork of upstream `ldk-node` published as `fedimint-ldk-node`.
+  The `.cargo_vcs_info.json` records sha `6f56103dd7996cbe73e619d417ed1f017a78c091`
+  with `dirty: true`.
+  
+  The sha exists in the upstream `lightningdevkit/ldk-node` repo. The upstream
+  `v0.6.1` tag points to a different commit (`93858b3`), which is the merge base.
+  There are exactly 2 commits between upstream `v0.6.1` and the fork sha:
+  
+  1. `8ee7bae chore: update rusqlite to 0.37.0` — bumps rusqlite from 0.31.0 to
+     0.37.0 and updates API calls (`rusqlite::DatabaseName::Main` → `"main"`)
+     in `src/io/sqlite_store/migrations.rs` and `src/io/sqlite_store/mod.rs`.
+  2. `6f56103 rename to fedimint-ldk-node` — changes only `name = "ldk-node"` →
+     `name = "fedimint-ldk-node"` in `Cargo.toml`.
+  
+  The `dirty: true` flag is expected given these modifications. Tree diff between
+  the tarball and upstream at the fork sha shows only:
+  - Two `bindings/kotlin/*/gradlew.bat` files differ (likely line endings)
+  - `bindings/uniffi-bindgen` directory only in upstream (excluded from tarball)
+  
+  `Cargo.toml.orig` matches upstream `Cargo.toml` at the fork commit exactly.
+  
+  **Verdict:** Partial pass. The crate is upstream `ldk-node v0.6.1` with two
+  clearly benign commits (rusqlite bump + package rename). No suspicious
+  divergence. The `repository` field still points to the upstream repo, which is
+  slightly misleading but not a security concern.
+  
+  ## Code review findings
+  
+  ### Thoroughness level: `low`
+  
+  Justification: 14,524 LoC (39 .rs files). Per the thoroughness table,
+  this is >10,000 LoC territory, warranting `low` (or `none`). Targeting `low`:
+  every file opened at least once with red-flag scan, full read of `build.rs`,
+  `unsafe` blocks, proc-macro functions, FFI surface, and dep list vs claims.
+  
+  ### Non-negotiable checks
+  
+  **build.rs:** Read in full (12 lines). Only generates uniffi scaffolding when
+  the optional `uniffi` feature is enabled. No network calls, no env exfiltration,
+  no writing outside `OUT_DIR`, no suspicious code. **Clean.**
+  
+  **unsafe blocks:** Zero `unsafe` blocks anywhere in src/. **Clean.**
+  
+  **Proc macros:** Not a proc-macro crate (`proc-macro = true` absent). **Clean.**
+  
+  **FFI surface:** No `extern "C"` declarations in source. The `uniffi` feature
+  (optional, not in default) would generate FFI bindings via the build script, but
+  the feature is not enabled by default. `libc` is a direct dependency but only
+  used for platform-specific utilities (e.g. Windows via winapi). **Minimal risk.**
+  
+  **Dependencies vs claims:** The crate is a full Lightning node library. All
+  dependencies are justified:
+  - `lightning*` crates — core LDK functionality
+  - `bdk_*` crates — on-chain Bitcoin wallet
+  - `reqwest` — HTTP client for Esplora/block explorers (justified for a node)
+  - `rusqlite` — local SQLite storage (justified)
+  - `esplora-client`, `electrum-client` — blockchain data sources (justified)
+  - `bitcoin`, `bip39`, `bip21` — Bitcoin primitives (justified)
+  - `tokio` — async runtime (justified)
+  - `serde`, `serde_json` — serialization (justified)
+  - `base64`, `rand`, `chrono`, `log` — standard utilities (justified)
+  - `vss-client`, `prost` — Versioned Storage Service support (justified)
+  - `libc` — platform utilities (justified)
+  - `uniffi` — optional FFI bindings (justified, optional)
+  - No surprising or unjustified dependencies found.
+  
+  ### Red-flag scan results
+  
+  - `unsafe` / `transmute` / `from_raw`: **0 hits**
+  - `Command::new` / `std::process::Command`: **0 hits**
+  - `std::env::var` / `std::env::vars`: **1 hit** — only in test code (`vss_store.rs:273`). **Benign.**
+  - `include_bytes!` / `include_str!`: **0 hits**
+  - Base64 literals / hex blobs / obfuscated strings: **0 hits**
+  - `extern "C"`: **0 hits**
+  - proc-macro functions: **0 hits**
+  
+  **`unwrap()` usage:** High count across the codebase (chain/mod.rs: 45, lib.rs: 31,
+  event.rs: 31, builder.rs: 30, wallet/mod.rs: 26). These are on internal state
+  (locks, channels, configuration) where the author considers failure impossible.
+  This is a code quality observation — not ideal for a financial application but
+  consistent with the upstream LDK Node project's style. Not a security finding at
+  this thoroughness level.
+  
+  ### Per-file read map
+  
+  - **build.rs** — read in full
+  - **config.rs** (571 lines) — read in full
+  - **lib.rs** (1681 lines) — read partially (lines 1–200): module declarations, crate docs, Node struct
+  - **builder.rs** (1651 lines) — read partially (lines 1–100): builder pattern, config types
+  - **event.rs** (1624 lines) — read partially (lines 1–60): event type imports/declarations
+  - **io/utils.rs** (662 lines) — read partially (lines 1–60): utility imports
+  - **chain/mod.rs** (1610 lines) — not read beyond red-flag scan
+  - **liquidity.rs** (1489 lines) — not read beyond red-flag scan
+  - **wallet/mod.rs** (956 lines) — not read beyond red-flag scan
+  - **payment/bolt11.rs** (816 lines) — not read beyond red-flag scan
+  - **payment/store.rs** (772 lines) — not read beyond red-flag scan
+  - **io/sqlite_store/mod.rs** (349 lines) — not read beyond red-flag scan
+  - **All other .rs files** — not read beyond red-flag scan (grep for red-flag patterns only)
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - **Most source files were not read in full.** At `low` thoroughness with 14.5K
+    LoC across 39 files, only `build.rs` and `config.rs` received a full read.
+    All other files were opened for red-flag pattern scanning only. A `medium`
+    thoroughness review would require reading every file in `src/` end-to-end.
+  - **Test directory not examined.** Tests are useful context but not evidence of
+    correctness.
+  - **The `bindings/` directory was not reviewed** (Kotlin/Swift/uniffi bindings).
+    These are not Rust source and are irrelevant to the Rust library's behavior.
+  - **The high `unwrap()` count was noted but not investigated per-site.** At
+    `medium` or `high` thoroughness, each `unwrap()` on a path reachable from
+    untrusted input should be traced. Not done here.
+  - **The `dirty: true` VCS flag** means there could be uncommitted modifications
+    beyond the two commits identified. The tree diff showed only expected
+    differences (gradlew.bat line endings, excluded uniffi-bindgen directory), so
+    this is likely benign, but it cannot be proven with certainty.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: low
+  - understanding: low
+----- SIGN CREV PROOF -----
+3VNDiFmYjE-3oDCYbgotQHTiiaPCKp3htAQJUcotVuL-9iFPqBOgli01k51aqgTNzjZ1GwQYnMUv80Qrf2qQCg
+----- END CREV PROOF -----
+
