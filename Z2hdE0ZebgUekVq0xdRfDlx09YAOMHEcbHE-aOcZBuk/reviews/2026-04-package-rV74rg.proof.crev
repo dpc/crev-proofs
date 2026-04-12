@@ -7763,3 +7763,147 @@ comment: |-
 WQaEBE3VPVJyAcUscY2SfiDHuqOHn3o2xM2bVW9aPlctSef90QrSO6pTy3w4HBMz5cKKm8Id-i-YDguT_glmCA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T16:37:25.742378412+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: tor-general-addr
+  version: 0.38.0
+  digest: 8gK4Hw0WMyPdDu2IUMO5Lcs3-KzjJDBtINCOWwcgKQI
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: tor-general-addr 0.38.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-general-addr-0.38.0
+  - Upstream repository: https://gitlab.torproject.org/tpo/core/arti.git/
+  - Upstream commit verified: n/a (could not resolve gitlab.torproject.org)
+  - Upstream tag for version: n/a
+  - Verification outcome: partial (DNS failure prevented upstream clone)
+  - `.cargo_vcs_info.json` sha1: ba421ece1acb47e5c554c2bfa043cc9156451bab
+  - `path_in_vcs`: crates/tor-general-addr
+  - Thoroughness level: medium (396 LoC, small enough for careful end-to-end read)
+  
+  ## Claims baseline
+  
+  The crate claims to provide a generalized socket address type (`SocketAddr`) that unifies
+  `std::net::SocketAddr` (IPv4/IPv6) and `std::os::unix::net::SocketAddr` (AF_UNIX) into a
+  single enum. It also provides a stub uninhabited type for non-Unix platforms. Part of the
+  Arti (Tor in Rust) project. No network I/O, no filesystem access, no process spawning
+  claimed — pure data types and parsing.
+  
+  ## External verification
+  
+  Could not resolve `gitlab.torproject.org` to clone the upstream repository. The
+  `.cargo_vcs_info.json` is present and records commit `ba421ece1acb47e5c554c2bfa043cc9156451bab`
+  in `crates/tor-general-addr`. This could not be verified against the upstream repo due to
+  DNS failure. No alternative mirrors were found. The verification is incomplete but there is
+  no indication of tampering — the crate is published by the Tor Project and is part of the
+  well-known Arti monorepo.
+  
+  ## Code review findings
+  
+  ### File map
+  
+  - `src/lib.rs` (49 lines) — **read in full**
+  - `src/general.rs` (487 lines) — **read in full**
+  - `src/unix.rs` (66 lines) — **read in full**
+  - `Cargo.toml.orig` (28 lines) — **read in full**
+  - `README.md` (17 lines) — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: Zero `unsafe` blocks found (`grep -rn 'unsafe' src/` returned nothing). Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  - **Dependencies**: `derive_more` (derive macros, reasonable for a type-heavy crate),
+    `thiserror` (standard error derive), `void` (uninhabited type, used for the non-Unix
+    stub — appropriate), `arbitrary` (optional, for fuzzing). All dependencies are justified
+    by the crate's purpose. No suspicious dependencies.
+  
+  ### Red-flag scan
+  
+  - `include_str!("../README.md")` in `lib.rs:2` — standard pattern for crate-level docs. Benign.
+  - No `transmute`, `from_raw`, raw pointer arithmetic.
+  - No `std::process::Command`, no shell invocation.
+  - No `std::env::var` or env var access.
+  - No network libraries (reqwest, ureq, hyper, curl, TCP sockets).
+  - No base64 literals, hex blobs, or obfuscated string construction.
+  - No `unwrap`/`expect`/`panic!` outside of test code (the crate denies `clippy::unwrap_used`).
+  - Platform-specific `#[cfg]` usage is straightforward and well-documented:
+    - `#[cfg(unix)]` for Unix socket support
+    - `#[cfg(not(unix))]` for the uninhabited stub
+    - `#[cfg(target_os = "android")]` and `#[cfg(target_os = "linux")]` for abstract socket names
+    All conditional compilation is appropriate for the crate's cross-platform socket abstraction purpose.
+  
+  ### Architectural summary
+  
+  The crate defines a `general::SocketAddr` enum with two variants: `Inet(net::SocketAddr)` and
+  `Unix(unix::SocketAddr)`. On Unix, `unix::SocketAddr` is a re-export of `std::os::unix::net::SocketAddr`.
+  On non-Unix platforms, it's an uninhabited struct wrapping `void::Void`, making the `Unix` variant
+  unconstructable. The crate implements `FromStr` with a schema-based parser ("inet:" or "unix:" prefix,
+  or bare IP:port), `Display` (via `DisplayLossy`), `PartialEq` (with careful Unix socket comparison
+  handling pathname, unnamed, and abstract names), and optional `Arbitrary` for fuzzing. Error handling
+  uses `thiserror` with a clean non-exhaustive enum.
+  
+  ### Claims vs reality reconciliation
+  
+  - The crate claims to be a pure data type with no I/O. Confirmed: no filesystem, network, process,
+    or environment access in non-test code.
+  - The crate claims cross-platform support with Unix stub. Confirmed: the `#[cfg]` gates provide a
+    clean separation.
+  - All capabilities exercised match the stated purpose.
+  
+  ### Specific observations
+  
+  1. `PartialEq` is implemented manually for `SocketAddr` because `std::os::unix::net::SocketAddr`
+     doesn't implement it. The implementation correctly handles pathname, unnamed, and abstract name
+     comparison. Note: `Eq` is intentionally not implemented (commented in code) because the manual
+     PartialEq can't guarantee reflexivity for all Unix socket types.
+  
+  2. The `FromStr` implementation has a reasonable heuristic: strings starting with a digit or `[`
+     are treated as inet addresses; otherwise it looks for a schema prefix. This could theoretically
+     misparse a hypothetical future schema starting with a digit, but the comment documents that new
+     schemas will start with ascii alphabetical characters.
+  
+  3. The `AddrParseError::InvalidAfUnixAddress` wraps `IoError` in an `Arc` to make it `Clone`.
+     This is a standard pattern.
+  
+  4. The `void` crate is used appropriately — on non-Unix platforms, `SocketAddr(void::Void)` makes
+     the type uninhabited, and the methods call `void::unreachable()` which is a safe way to express
+     unreachable code with an uninhabited type.
+  
+  5. Lint configuration is thorough (denies `unwrap_used`, `print_stdout`, `print_stderr`, etc.),
+     indicating good crate hygiene.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version. This is the first review.
+  
+  ## Open questions / things skipped
+  
+  - External verification could not be completed due to DNS resolution failure for
+    gitlab.torproject.org. The crate should be re-verified when the upstream is reachable.
+  - `Cargo.lock` was not inspected (not relevant for library review).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+Kpg8hQLrHr1MLIx7SqBEVbjnx5uy8q8VvthOzZTqGAisd-whEIvPInTlNu2TGz3dCKlrtJ_i1ELI2NTZbRC2CA
+----- END CREV PROOF -----
+
