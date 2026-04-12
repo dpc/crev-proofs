@@ -8507,3 +8507,87 @@ comment: |-
 W9PNKjSziO-EJiDyR6k3yxP-C1oTKo9VN4Fi4swDEO5gEs1xFbnFjV-Y4duyMfz28LjEEjNJU52sndRasscyCw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T18:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: tracing-test
+  version: 0.2.6
+  digest: PS3N6XC0KWab_3_8q78ys7DnBxJQSiLaBtU-B70R7zA
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  ## External verification
+  
+  - Upstream repo: https://github.com/dbrgn/tracing-test
+  - Upstream commit (from .cargo_vcs_info.json): 31f16ca7d635d02e6b2ed3ddbefe09164b262f2e
+  - Tag v0.2.6 on upstream points to the same commit: confirmed
+  - diff -r between crate and upstream at recorded commit: match (only .cargo-ok and Cargo.toml.orig differ, both are cargo artifacts)
+  
+  ## Code review findings
+  
+  ### Structure
+  
+  The crate has 3 source files totaling ~50 LoC of logic (excluding doc comments):
+  
+  - src/lib.rs: Almost entirely doc comments. Re-exports tracing_test_macro::traced_test and exposes internal and subscriber modules.
+  - src/subscriber.rs: MockWriter struct wrapping &Mutex<Vec<u8>>, implements io::Write and MakeWriter. get_subscriber() builds a FmtSubscriber dispatch.
+  - src/internal.rs: INITIALIZED: Once for one-time setup, global_buf() returning a OnceLock<Mutex<Vec<u8>>>, logs_with_scope_contain() and logs_assert() for test assertions.
+  
+  ### Companion proc-macro crate (tracing-test-macro =0.2.6)
+  
+  The #[traced_test] attribute macro (138 lines) injects:
+  1. One-time global subscriber initialization
+  2. A tracing span named after the test function (with counter for duplicates)
+  3. logs_contain() and logs_assert() helper functions
+  
+  No surprising code generation. The macro only injects calls back into tracing_test::internal::*.
+  
+  ### Dependencies
+  
+  - tracing-core 0.1 (standard)
+  - tracing-subscriber 0.3 with env-filter feature (standard)
+  - tracing-test-macro =0.2.6 (companion proc-macro, pinned exact version)
+  
+  ### Safety / red flags
+  
+  - No unsafe blocks anywhere in the crate
+  - No build.rs
+  - No FFI / extern calls
+  - No network access or file I/O (other than stdout via print!())
+  - No ambient authority - the crate only operates on in-memory buffers
+  - One unwrap() on String::from_utf8() for printing to stdout - acceptable for test-only code
+  - Two unwrap() calls on mutex locks - standard pattern; poisoned mutex indicates prior panic
+  
+  ### Potential concerns (minor)
+  
+  1. Global mutable state (global_buf(), INITIALIZED) means all tests in a process share one log buffer. By design; scope-based filtering handles separation.
+  2. print!() in MockWriter::write() means logs go to both stdout and the buffer. Intentional for cargo test capture behavior.
+  
+  ### Malicious intent assessment
+  
+  No indicators of malicious behavior. The code is straightforward, does exactly what it claims, and has no capability to access anything beyond in-memory buffers and stdout.
+  
+  ## Cross-check
+  
+  No existing cargo-crev reviews found for tracing-test.
+  
+  ## Open questions
+  
+  - Did not audit transitive dependencies (tracing-subscriber, tracing-core, quote, syn).
+  - Did not separately verify tracing-test-macro crate on crates.io matches upstream at same commit (only verified tracing-test itself). The exact version pin =0.2.6 ensures they are published together.
+----- SIGN CREV PROOF -----
+KfXlBN6Nodosg-0Jba89D8sRtq3uD4oAMWBnvPmqjYhk3yHb4PdSjrK-Ewvyecq_nwHq3PEn_TjlQNZRuildCQ
+----- END CREV PROOF -----
+
