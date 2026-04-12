@@ -3692,3 +3692,103 @@ comment: |-
 bQhFy2b-RtV9y1bH6Q_qlZBgCYGM85niBgeTZQeAMC06PGhGlLCRDkOlvMj2JWH-V0qFg8XzGVEoQNIr9a1zCQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T06:46:42+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: fedimint-tonic-lnd
+  version: 0.4.0
+  digest: VzDEbTKG13xmJ5_NCdhUZeVnBvFoSSWDaXO1vhxAy9g
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: fedimint-tonic-lnd 0.4.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fedimint-tonic-lnd-0.4.0
+  - Upstream repository: https://github.com/fedimint/tonic_lnd
+  - Upstream commit verified: 30824462097984453d34d8f477fa38ff76610b9e
+  - Upstream tag for version: n/a (commit is master HEAD, matches .cargo_vcs_info.json sha)
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  Crate claims to be an async library implementing LND RPC via tonic and prost, forked from tonic_lnd. It provides gRPC client bindings for LND's lightning, wallet, signer, peers, versioner, router, invoices, and state services. All network access is expected given the crate's purpose.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/fedimint/tonic_lnd at commit 30824462097984453d34d8f477fa38ff76610b9e (master HEAD). `diff -r --brief` between the crate source and the upstream working copy (excluding expected files: .cargo_vcs_info.json, Cargo.toml, Cargo.toml.orig, .cargo-ok, Cargo.lock, .gitignore, .git, .jj) produced zero differences. All source files are bit-for-bit identical.
+  
+  No version tag exists for 0.4.0 — the commit is the latest merge on master. This is a minor process gap but not a security concern given the exact sha match.
+  
+  ## Code review findings
+  
+  Thoroughness level: medium (387 LoC, small enough to read end-to-end).
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: Read in full. Uses `tonic_build` to compile vendored `.proto` files from a `vendor/` directory into Rust gRPC client stubs. Supports an optional `LND_REPO_DIR` env var to override the proto source path. No network calls, no shell invocations, no writes outside OUT_DIR, no suspicious behavior. The env var read (`LND_REPO_DIR`) is benign — it's a standard build-time configuration pattern for proto file location.
+  - **Dependencies**: All dependencies are justified for a gRPC client library: `tonic`/`prost` for gRPC, `hyper`/`hyper-util`/`hyper-rustls`/`rustls`/`rustls-pemfile` for HTTP/2 + TLS transport, `tokio`/`tokio-stream` for async runtime, `hex` for macaroon encoding. No surprising or unjustified dependencies.
+  - **Proc-macro**: Not a proc-macro crate.
+  - **Unsafe blocks**: Zero `unsafe` blocks in the entire `src/` directory.
+  - **FFI surface**: None.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** (400 lines) — **read in full**
+    - Re-exports `tonic` for downstream convenience.
+    - Defines `Client` struct with feature-gated fields for each RPC service, plus accessor methods. Straightforward.
+    - `MacaroonInterceptor` inserts hex-encoded macaroon into gRPC metadata. One `expect("hex produced non-ascii")` — sound, since hex encoding always produces ASCII.
+    - `load_macaroon` reads a file via `tokio::fs::read` and hex-encodes it. Proper error handling via `InternalConnectError`.
+    - `connect` function: builds HTTPS connector with custom TLS config, loads macaroon, creates intercepted service, parses URI. All error paths return proper error types.
+    - `tls` module: custom `CertVerifier` implementing `ServerCertVerifier`. This is a **pin-based certificate verifier** — it loads the expected certificate from a PEM file and compares it byte-for-byte against the server's presented certificate chain. This is the correct approach for LND's self-signed TLS certificates.
+      - `verify_server_cert`: sorts both cert chains and compares. Logic is correct — checks length equality first, then pairwise comparison.
+      - `verify_tls12_signature` / `verify_tls13_signature`: delegates to rustls's standard verification functions using the default crypto provider's algorithms. Correct.
+      - One `expect("Must install default crypto provider")` at line 331 — this would panic if no rustls crypto provider is installed, which is a precondition. Acceptable for a library that requires TLS.
+    - Proto module declarations use `tonic::include_proto!` macro, each gated behind feature flags. Standard pattern.
+    - `try_map_err!` macro: simple error mapping helper. No issues.
+  
+  - **src/error.rs** (59 lines) — **read in full**
+    - Clean error type with opaque wrapper pattern. `ConnectError` wraps `InternalConnectError`. Display and Error impls are correct, with proper source chaining. Three variants: ReadFile, ParseCert, InvalidAddress.
+  
+  - **build.rs** (35 lines) — **read in full** (covered above in non-negotiable checks)
+  
+  - **examples/*.rs** (6 files) — **read in full (red-flag scan only)**
+    - All examples follow the same pattern: parse CLI args, connect, make one RPC call, print result. Use `expect()` throughout, which is fine for examples. No red flags.
+  
+  - **vendor/** — Contains protobuf definition files from LND. These are `.proto` files (not Rust code), used only at build time by tonic_build. Not audited line-by-line as they are upstream LND protocol definitions, not authored by this crate's maintainers.
+  
+  ### Capabilities vs claims reconciliation
+  
+  - Network access (gRPC over HTTPS): justified — the crate is an RPC client library.
+  - Filesystem reads (cert file, macaroon file): justified — required for TLS and authentication.
+  - No filesystem writes, no process spawning, no env var exfiltration beyond the build-time `LND_REPO_DIR`.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - Vendored `.proto` files not audited line-by-line (they are LND upstream protocol definitions).
+  - Cargo.lock included in the published crate (unusual but harmless).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+1EyoFHkUbk1sn6urqsaeZMs0sNyhh1m88VcnViaEN-1KZK9lKZf29FleZpYVyS4bYpX77MWlCCrSBW7lCzIcDw
+----- END CREV PROOF -----
+
