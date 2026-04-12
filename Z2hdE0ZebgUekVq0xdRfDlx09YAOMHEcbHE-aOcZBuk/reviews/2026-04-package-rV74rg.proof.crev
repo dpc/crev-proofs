@@ -6816,3 +6816,158 @@ comment: |-
 _EgnOYBmihU9qT7ll9HHmpHfKWkFsLyIuMhhogmWHAQk8_tDG6ZEzRGhsN4Lxg3PKs2mQosDja7cyLIrzRAUAQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T16:02:54+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: alloca
+  version: 0.4.0
+  digest: PGTzRs3KCl7-5i2UsPHiVVx8GXtOgm1IoUB_-4IfEgk
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: neutral
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: alloca 0.4.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloca-0.4.0
+  - Upstream repository: https://github.com/playXE/alloca-rs
+  - Upstream commit verified: 1a5ff4220155da43390f7f7ee940cb508d3db262
+  - Upstream tag for version: n/a (no tags in upstream repo)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` records sha `1a5ff4220155da43390f7f7ee940cb508d3db262`. This commit exists
+  in the upstream repo at https://github.com/playXE/alloca-rs (merge commit "Merge pull request #6
+  from StackOverflowExcept1on/main"). No version tags exist in the upstream repo. `diff -r --brief`
+  between the crate source and the checked-out upstream (excluding expected packaging artifacts)
+  shows zero differences. All files are bit-for-bit identical. Manifest (`Cargo.toml.orig`) matches
+  upstream `Cargo.toml`.
+  
+  ## Claims baseline
+  
+  Crate claims to be a "mostly safe no_std wrapper for alloca in Rust". It provides stack allocation
+  via a C helper that calls the platform `alloca` (or VLA on non-MSVC), with Rust lifetime scoping
+  to prevent use-after-return. Claims to be `no_std` compatible.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** (94 LoC Rust + 16 lines C + 13 lines build.rs — small enough to
+  read every line carefully).
+  
+  ### File map
+  
+  - `src/lib.rs` (97 lines): **read in full**
+  - `src/tests.rs` (27 lines): **read in full**
+  - `src/main.rs` (5 lines): **read in full**
+  - `build.rs` (13 lines): **read in full**
+  - `alloca.c` (16 lines): **read in full**
+  - `Cargo.toml.orig` (20 lines): **read in full**
+  - `README.md` (23 lines): **read in full**
+  - `LICENSE`: **not read** (MIT license file, not security-relevant)
+  
+  ### Non-negotiable checks
+  
+  **build.rs**: Present. Uses `cc::Build` to compile `alloca.c`. Behaviour:
+  - Optionally adds `-fstack-clash-protection` flag if the `stack-clash-protection` feature is
+    enabled.
+  - Adds `-flto` flag if the `CC` environment variable equals `"clang"`.
+  - Compiles `alloca.c` with `-O2`.
+  - No network calls, no shelling out beyond `cc`, no writes outside `OUT_DIR`, no env exfiltration
+    beyond the standard `CC` check, no obfuscated strings or binary blobs.
+  - Finding: reads `option_env!("CC")` but this is standard practice for `cc` crate usage. Benign.
+  
+  **Cargo.toml dependencies**: Only build-dep is `cc = "1.0"`. No runtime dependencies. Consistent
+  with a crate that wraps C code. No suspicious deps.
+  
+  **Proc-macro**: Not a proc-macro crate. No proc-macro functions.
+  
+  **Unsafe blocks**: Enumeration via manual inspection:
+  1. `src/lib.rs:35-41` — `unsafe extern "C-unwind" fn trampoline<F>`: Casts `data` pointer back to
+     `ManuallyDrop<F>` and calls `ManuallyDrop::take`. This is the core FFI trampoline. Sound if
+     `data` is always a valid `*mut ManuallyDrop<F>` — which it is, because `with_alloca` creates
+     `closure_data` as `ManuallyDrop::new(closure)` and passes `&mut closure_data as *mut _ as
+     *mut c_void`. The `ManuallyDrop::take` consumes the closure exactly once (FnOnce). The
+     `extern "C-unwind"` ABI correctly allows Rust panics to unwind through C frames.
+  2. `src/lib.rs:61` — `slice::from_raw_parts_mut(ptr, size)`: Creates a mutable slice from the
+     C-allocated stack buffer. Sound if the C function returns a valid pointer to `size` bytes,
+     which it does (VLA or `_alloca`). Lifetime is scoped to the closure.
+  3. `src/lib.rs:68-71` — `c_with_alloca(...)` call and `ret.assume_init()`: The FFI call passes
+     the trampoline and closure data. `assume_init()` is sound because the trampoline always
+     writes to `ret` via `ret.write(f(slice))` before returning.
+  4. `src/lib.rs:76-79` — `with_alloca_zeroed`: `ptr::write_bytes` zeroes memory, then
+     `mem::transmute` converts `&mut [MaybeUninit<u8>]` to `&mut [u8]`. Sound because zeroed
+     `MaybeUninit<u8>` is a valid `u8`.
+  5. `src/lib.rs:86-92` — `alloca<T, R>`: Manual alignment fixup on the raw pointer. Allocates
+     `size_of::<T>() + (align_of::<T>() - 1)` bytes, then bumps the pointer to the next aligned
+     address. Sound: the extra `align_of - 1` bytes guarantee an aligned address exists within
+     the allocation.
+  
+  **FFI surface**: Links to a custom C file (`alloca.c`) compiled at build time. The C function
+  `c_with_alloca` performs stack allocation and calls back into Rust. No external C library
+  dependencies beyond the platform's standard library (`alloca`/VLA).
+  
+  ### Findings
+  
+  1. **Stack overflow risk (documented)**: The crate documents that allocating more than the thread
+     stack size will cause a segfault. This is inherent to `alloca` and is clearly documented in the
+     `with_alloca` doc comment. No bounds checking is performed. This is a known limitation, not a
+     bug.
+  
+  2. **`extern "C-unwind"` ABI**: The trampoline and FFI declaration use `C-unwind`, which is
+     correct for allowing Rust panics to propagate through the C frame. The `main.rs` example
+     confirms this is intentional (it tests panicking inside the callback). Good.
+  
+  3. **No `Drop` concerns**: The allocated memory is stack memory managed by the C function's
+     return. No `Drop` impls needed or present.
+  
+  4. **`transmute` in `with_alloca_zeroed`**: Converting `&mut [MaybeUninit<u8>]` to `&mut [u8]`
+     after zeroing. This is sound (`MaybeUninit<u8>` and `u8` have the same layout, and the memory
+     is initialized to zero). Slightly ugly but correct.
+  
+  5. **`ManuallyDrop::take` in trampoline**: Called exactly once because `FnOnce` guarantees the
+     closure is consumed once, and the C callback is invoked exactly once. No double-free risk.
+  
+  6. **Claims vs reality reconciliation**: Crate claims "mostly safe wrapper for alloca" — confirmed.
+     The only capabilities exercised are FFI to a custom C file for stack allocation. No network, no
+     filesystem, no env vars (beyond build.rs), no process spawning. The `no_std` claim is confirmed
+     by `#![no_std]` in lib.rs.
+  
+  7. **Red-flag scan results**:
+     - `unsafe`: 5 blocks, all analyzed above — all sound.
+     - `transmute`: 1 usage in `with_alloca_zeroed` — sound (see finding #4).
+     - `from_raw_parts_mut`: 1 usage — sound (see unsafe block #2).
+     - `Command`, `env::var`, `reqwest`, `include_bytes!`, base64 literals, obfuscated strings: none.
+     - `unwrap`/`expect`/`panic!`: none in library code. `main.rs` panics intentionally for testing
+       unwind behaviour.
+     - Conditional compilation: `#[cfg(feature = "stack-clash-protection")]` in build.rs only. Benign.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `LICENSE` file not read (standard MIT, not security-relevant).
+  - No investigation into whether upstream CI runs sanitizers — the repo has a basic CI workflow
+    badge but no deep inspection was performed.
+  
+  ## Draft review fields
+  
+  - rating: neutral
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+-JlMWrWIPpzoTyHP6clagXquiOHyy_LCZDf-W4YwFYJjNS7heSf3duewd7j2DN9-UPVF2eGLHa0AOGmtu6tpBQ
+----- END CREV PROOF -----
+
