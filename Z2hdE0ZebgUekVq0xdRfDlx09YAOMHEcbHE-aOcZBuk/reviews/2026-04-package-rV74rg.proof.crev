@@ -8411,3 +8411,99 @@ comment: |-
 sRdS4sMfJZVxWuzOveW8u5Sp3TKlmgLx4wxCV5njuU15jYg0vEWe1J8G5FRLehQ0Zd7VQ83gu0YDW0SiKtVrDg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: macro_rules_attribute
+  version: 0.2.2
+  digest: BbBDI5nTBMwTtP8ZOEMS6ItwhMdNbJopWXRarMSDDkM
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: macro_rules_attribute 0.2.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/macro_rules_attribute-0.2.2
+  - Upstream repository: https://github.com/danielhenrymantilla/macro_rules_attribute-rs
+  - Upstream commit verified: cc800f99c893bf2f8abdeb225d3b51edc382da4c
+  - Upstream tag for version: v0.2.2
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` sha `cc800f99c893bf2f8abdeb225d3b51edc382da4c` matches the `v0.2.2` tag in the upstream repository exactly. Diffing the published crate against the upstream checkout shows only expected differences:
+  
+  - `cargo_publish.sh` and `change_version.sh` excluded from the crate per `exclude = ["*.sh"]`
+  - `Cargo.toml.orig` present only in crate (added by cargo during publish)
+  - `src/proc_macro/` directory is a separate workspace member published as `macro_rules_attribute-proc_macro`
+  
+  No unexpected files or content discrepancies found.
+  
+  ## Code review findings
+  
+  ### src/lib.rs (~87 LoC of actual logic)
+  
+  The main crate is a thin frontend that:
+  
+  1. Re-exports proc macros from the companion `macro_rules_attribute-proc_macro` crate: `macro_rules_attribute` (aliased as `apply`), `macro_rules_derive`, `derive`, and `Custom`.
+  2. Defines `derive_alias!` macro: Uses `paste` crate to generate macro_rules macros that expand derive aliases.
+  3. Defines `attribute_alias!` macro: Simpler version that generates macro_rules macros prepending attributes to items.
+  4. Defines helper macros for dollar-sign escaping and nested derive expansion.
+  
+  Key observations:
+  
+  - `#![forbid(unsafe_code)]` - no unsafe code allowed
+  - `#![no_std]` - minimal footprint
+  - No network calls, no env vars, no process spawning, no file I/O
+  - No build.rs
+  
+  ### src/proc_macro/mod.rs (~305 LoC, companion proc-macro crate)
+  
+  The actual proc-macro implementation:
+  
+  - `macro_rules_attribute`: Parses a path, wraps input item in braces after the macro path.
+  - `macro_rules_derive`: Same but preserves the original item (derive semantics).
+  - `derive`: Handles both regular derives and macro_rules-based derives.
+  - `Custom`: No-op derive registering helper attributes.
+  
+  Key observations:
+  
+  - No dependencies (only `proc_macro` from std)
+  - No unsafe code, no network calls, no env vars, no process spawning, no file I/O
+  
+  ### Dependencies
+  
+  - `paste` (1.0.7): Used for identifier concatenation in `derive_alias!`. Appropriate.
+  - `macro_rules_attribute-proc_macro` (=0.2.2): Companion proc-macro crate, pinned to exact version.
+  
+  ### Red flag scan
+  
+  No unsafe code (explicitly forbidden), no build.rs, no FFI, no network access, no environment variable reads, no process spawning, no obfuscated strings.
+  
+  ### Claims verification
+  
+  The crate description "Use declarative macros in attribute or derive position" accurately matches the implementation.
+  
+  ## Cross-check against existing reviews
+  
+  No existing crev reviews found for this crate.
+  
+  ## Open questions / things skipped
+  
+  - Test files were not reviewed in detail as they are dev-only.
+  - README.md was not reviewed.
+----- SIGN CREV PROOF -----
+W9PNKjSziO-EJiDyR6k3yxP-C1oTKo9VN4Fi4swDEO5gEs1xFbnFjV-Y4duyMfz28LjEEjNJU52sndRasscyCw
+----- END CREV PROOF -----
+
