@@ -5933,3 +5933,115 @@ comment: |-
 PXEjwV8PCI16FN1TW5G6thrQhkbmn_Zbw4pWYNB6WNQuUysBLSPIpxoftuGOoBwj6uRoe-Ty1ZFUg9dAmV9kDg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T08:28:46+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: tower-service
+  version: 0.3.3
+  digest: MTvHbOMm2f4LPKde-rlVSFvRd3x_h4To4WmQKAHOs5g
+review:
+  thoroughness: medium
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: tower-service 0.3.3
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-service-0.3.3
+  - Upstream repository: https://github.com/tower-rs/tower
+  - Upstream commit verified: 646804d77eebf072dac180cb5e1256b9ee7e0229
+  - Upstream tag for version: tower-service-0.3.3
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/tower-rs/tower at commit
+  `646804d77eebf072dac180cb5e1256b9ee7e0229`, which is the commit tagged as
+  `tower-service-0.3.3`. The `.cargo_vcs_info.json` sha matches the tag exactly.
+  All files in the `tower-service/` subdirectory are bit-for-bit identical between
+  the crates.io tarball and the upstream repo at this commit. The `Cargo.toml.orig`
+  in the tarball is identical to the upstream `Cargo.toml`.
+  
+  ## Code review findings
+  
+  Thoroughness level chosen: **medium** (45 Rust LoC — small enough to read carefully end-to-end).
+  
+  ### Claims baseline
+  
+  The crate claims to define "the core `Service` trait to Tower" — an asynchronous,
+  request/response based abstraction for clients and servers. It should contain only
+  a trait definition and possibly blanket impls.
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**. This is the only Rust source file.
+  
+  ### Non-negotiable checks
+  
+  - **`build.rs`**: Not present. Positive.
+  - **`Cargo.toml` dependency list**: Zero runtime dependencies (`[dependencies]` is
+    empty). Dev-dependencies include `http`, `tower-layer`, `tokio`, and `futures`,
+    which are appropriate for the doctest examples. No concerns.
+  - **Proc-macro**: Not a proc-macro crate.
+  - **`unsafe` blocks**: The crate has `#![forbid(unsafe_code)]` at line 7. Confirmed
+    via search — zero `unsafe` occurrences. Positive.
+  - **FFI surface**: None.
+  
+  ### Detailed findings
+  
+  The crate contains exactly one file (`src/lib.rs`) with:
+  
+  1. **Lint attributes** (lines 1–6): `warn` for missing docs/debug impls/idioms,
+     `forbid(unsafe_code)`. Sensible and restrictive.
+  
+  2. **The `Service` trait** (lines 311–356): A generic trait `Service<Request>` with
+     three associated types (`Response`, `Error`, `Future`) and two methods
+     (`poll_ready`, `call`). The `Future` associated type is bound to
+     `Future<Output = Result<Self::Response, Self::Error>>`. `call` has
+     `#[must_use]` on its return value. This is a clean, minimal async service
+     abstraction.
+  
+  3. **Blanket impl for `&'a mut S`** (lines 358–373): Delegates to the inner `S`.
+     Correct — lifetime bound prevents misuse.
+  
+  4. **Blanket impl for `Box<S>`** (lines 375–390): Delegates to the inner `S` with
+     `?Sized` bound. Correct — enables `Box<dyn Service<...>>` usage.
+  
+  5. **Documentation** (lines 19–310): Extensive rustdoc with examples showing
+     server, client, middleware/layer, and backpressure patterns. The examples use
+     dev-dependencies (`http`, `tower-layer`, `tokio`, `futures`). The clone
+     footgun documentation (lines 235–310) is particularly valuable and accurate.
+  
+  No red flags found. No network access, no filesystem access, no process spawning,
+  no env var reading, no obfuscated code, no suspicious patterns. The code does
+  exactly what it claims — defines a trait and two trivial blanket impls.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  - `CHANGELOG.md` and `README.md`: Not read in detail. These are documentation-only
+    files and do not affect the crate's behavior.
+  - Test files: None present in the crate tarball (tests are in the workspace root
+    of the tower repo, not in this subcrate's directory).
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+fSz2btzIqcC1LtoxPHOv1v09LZm32IK0AYMAgWLtaax86hZMsUTMEwatal1hc9_Jd0fUmI0BrouMK9cJG3AjCg
+----- END CREV PROOF -----
+
