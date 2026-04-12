@@ -7404,3 +7404,91 @@ comment: |-
 8UjrF5tqQ-mwduXrSPpjtKQ1LsciMIQlC9FJpdTCt5wHviv-H8LcACUktA68-gBzvQChL9EPfHXrRZP6g-6aBA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T16:24:21+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: webpki-roots
+  version: 0.26.11
+  digest: endkP-uU4Lgh9A7eiDVGjeKbFJUnFlwLpT9N9RsKHBU
+review:
+  thoroughness: medium
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: webpki-roots 0.26.11
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/webpki-roots-0.26.11
+  - Upstream repository: https://github.com/rustls/webpki-roots
+  - Upstream commit verified: 65a47ac297fb378a602472d447b1260439253bd4
+  - Upstream tag for version: v/0.26.11
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/rustls/webpki-roots at commit `65a47ac297fb378a602472d447b1260439253bd4` tagged `v/0.26.11`. All source files bit-for-bit identical. `Cargo.toml.orig` matches upstream `Cargo.toml` exactly (workspace-inherited fields are present in both since the upstream file also uses workspace inheritance). No unexpected files in the crates.io tarball.
+  
+  ## Code review findings
+  
+  Chosen thoroughness: **medium** (33 Rust LoC — small enough to read carefully end-to-end).
+  
+  ### Claims baseline
+  
+  The crate claims to provide "Mozilla's CA root certificates for use with webpki". This version (0.26.11) is explicitly a semver trick: it re-exports `TLS_SERVER_ROOTS` from `webpki-roots` v1.x, allowing downstream users to migrate at their leisure.
+  
+  ### File map
+  
+  - `src/lib.rs` (33 lines) — **read in full**: Contains crate-level documentation, lint attributes, and a single `pub use parent::TLS_SERVER_ROOTS;` re-export. That is the entire executable content of this crate.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependency list**: Single runtime dependency: `parent = { package = "webpki-roots", version = "1" }`. This is the semver-trick pattern — the v0.26 crate delegates entirely to v1. Consistent with stated purpose. Dev-dependencies are test-only (hex, percent-encoding, pki-types, rcgen, ring, rustls, tokio, webpki, webpki-ccadb, x509-parser, yasna) and not shipped.
+  - **Proc-macro**: Not a proc-macro crate.
+  - **Unsafe blocks**: Zero. The crate explicitly uses `#![forbid(unsafe_code)]`.
+  - **FFI surface**: None.
+  
+  ### Red-flag scan
+  
+  - No `unsafe`, `transmute`, `from_raw`, raw pointers.
+  - No `std::process::Command`, shell invocation.
+  - No `std::env::var`, env var access.
+  - No network libraries (reqwest, ureq, hyper, curl, TCP sockets).
+  - No `include_bytes!`, `include_str!`.
+  - No base64 literals, hex blobs, large const byte arrays.
+  - No obfuscated string construction.
+  - `#![no_std]` — no std at all.
+  
+  All clear. This is a trivially simple crate.
+  
+  ### Architecture summary
+  
+  This crate is a thin semver-trick shim. It depends on `webpki-roots` v1 (aliased as `parent`) and re-exports its single public item `TLS_SERVER_ROOTS`. The crate uses `#![no_std]` and `#![forbid(unsafe_code)]`. There is no logic, no data, and no attack surface in this crate itself — all substance lives in the v1 crate.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  - `tests/` directory exists but was not read — tests are not shipped and do not affect the crate's runtime behavior. At this thoroughness level for a 1-line crate, skipping tests is acceptable.
+  - The actual root certificate data lives in `webpki-roots` v1, which is a separate crate and not part of this review.
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+uxMB4HXyL0dVOJ9PgNVMnpKbx6z0TlEEa64ZQD0UPvUUu12jWkvZ6rq2D9k8_MYLOh7RhBI49zZW7A8wmsOrBw
+----- END CREV PROOF -----
+
