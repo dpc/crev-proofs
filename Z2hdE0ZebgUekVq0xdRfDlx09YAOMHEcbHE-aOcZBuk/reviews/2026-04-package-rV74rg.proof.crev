@@ -3584,3 +3584,111 @@ comment: |-
 kJlWfJl_6j0ipPV2UPaTReH-wYchTBDh2Toy7KAN8h-d0PRjL9q7sAP-IOTpc9SF5KI6wrrvq7Ho_ixGSZRKDg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T06:41:34+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: opaque-debug
+  version: 0.3.1
+  digest: YZHIDrtBdu98QmHWraAeMI9N_7urHUlnNkC3UP4Tgz0
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: opaque-debug 0.3.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/opaque-debug-0.3.1
+  - Upstream repository: https://github.com/RustCrypto/utils
+  - Upstream commit verified: dd4adddf8b716bb51eb8ccb8c73e47bff1e358aa
+  - Upstream tag for version: opaque-debug-v0.3.1
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to provide a macro for opaque `Debug` trait implementation, preventing leaking of sensitive data (e.g. cryptographic keys) through debug formatting. It is `#![no_std]` and has zero dependencies.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/RustCrypto/utils at commit `dd4adddf8b716bb51eb8ccb8c73e47bff1e358aa`, which is the commit tagged as `opaque-debug-v0.3.1`. The `.cargo_vcs_info.json` sha and the tag sha agree exactly. `Cargo.toml.orig` matches upstream `Cargo.toml` byte-for-byte. All other files (`src/lib.rs`, `tests/mod.rs`, `README.md`, `CHANGELOG.md`, `LICENSE-APACHE`, `LICENSE-MIT`) are identical between the crates.io tarball and the upstream repository at the tagged commit.
+  
+  ## Code review findings
+  
+  Thoroughness: medium (crate is 82 lines including docs/comments, ~44 LoC — small enough to read carefully end-to-end).
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**
+  - `tests/mod.rs` — **read in full**
+  - `Cargo.toml` / `Cargo.toml.orig` — **read in full**
+  - `README.md` — **read in full**
+  - `CHANGELOG.md` — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependency list**: Zero dependencies. Positive — matches claimed pure-macro utility.
+  - **Proc-macro**: Not a proc-macro crate. The macros are `macro_rules!` (declarative). Positive.
+  - **unsafe blocks**: `rg -n 'unsafe' src/` — zero hits. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries.
+  
+  ### Architecture summary
+  
+  The crate exports two declarative macros:
+  
+  1. `format_params!` (doc-hidden helper) — recursively builds a format string of `"{}"` joined by `", "` for N type parameters.
+  2. `implement!` — the public macro with two arms:
+     - Generic variant `($struct:ident <$($params:ident),+>)`: implements `Debug` printing `StructName<TypeA, TypeB> { ... }` using `core::any::type_name`.
+     - Non-generic variant `($struct:ty)`: implements `Debug` printing `StructName { ... }`.
+  
+  Both use `pub extern crate core as __core` for hygienic access to `core::fmt::Debug`, `core::fmt::Formatter`, `core::fmt::Error`, and `core::any::type_name`.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims: opaque Debug implementation, no_std, no I/O, no network, no env, no unsafe.
+  - Reality: confirmed. The crate only uses `core::fmt::Write`, `core::fmt::Debug`, `core::fmt::Formatter`, `core::fmt::Error`, and `core::any::type_name`. No capabilities exercised beyond formatting.
+  
+  ### Red-flag scan
+  
+  - No `unsafe`, `transmute`, `from_raw`, raw pointers.
+  - No `std::process::Command`, no shell invocation.
+  - No `std::env::var` or env var access.
+  - No network libraries.
+  - No `include_bytes!` or `include_str!`.
+  - No base64/hex blobs, no obfuscated strings.
+  - No `unwrap`/`expect`/`panic!` on untrusted input.
+  - No conditional compilation (`#[cfg]`).
+  - No `Drop` impls.
+  - No custom serde deserializers.
+  
+  ### Minor observations
+  
+  - The doc comment has a typo: "paramters" should be "parameters" and "GenricCryptoStuff" should be "GenericCryptoStuff". These are cosmetic only.
+  - The `format_params!` macro is `#[doc(hidden)]` but `#[macro_export]`, so it's technically public. This is a common pattern for helper macros and not a concern.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  Nothing was skipped. The entire crate was read in full. No open questions.
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+bQhFy2b-RtV9y1bH6Q_qlZBgCYGM85niBgeTZQeAMC06PGhGlLCRDkOlvMj2JWH-V0qFg8XzGVEoQNIr9a1zCQ
+----- END CREV PROOF -----
+
