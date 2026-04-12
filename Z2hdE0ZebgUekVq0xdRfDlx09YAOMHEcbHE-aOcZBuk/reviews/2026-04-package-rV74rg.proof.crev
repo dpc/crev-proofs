@@ -5149,3 +5149,109 @@ comment: |-
 ipghql8OkcxNOVD8Snk8lCOcdiR1UZecqLTYKdc9c-Q76O_jq9yMQIdtzgqkd0OWC97MLisuNksFFk_22Me_AQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T08:03:49+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: is_terminal_polyfill
+  version: 1.70.1
+  digest: CKRM8spHg5g0xdsJueCdmwm0XRNKqNsd1TrtzrZKrlU
+review:
+  thoroughness: high
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: is_terminal_polyfill 1.70.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/is_terminal_polyfill-1.70.1
+  - Upstream repository: https://github.com/polyfill-rs/is_terminal_polyfill
+  - Upstream commit verified: 39110f676849a9daef26d02b3e546a1d8ba87f9e
+  - Upstream tag for version: v1.70.1 (points to same commit)
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to be a polyfill for the `is_terminal` stdlib feature (`std::io::IsTerminal`), allowing use with older MSRVs (minimum supported Rust version). It provides an `IsTerminal` trait with an `is_terminal()` method for standard I/O types.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/polyfill-rs/is_terminal_polyfill at commit `39110f676849a9daef26d02b3e546a1d8ba87f9e`, which is the commit tagged as `v1.70.1`. The `.cargo_vcs_info.json` sha matches the tag target exactly.
+  
+  Files only present in the upstream repo but absent from the crate tarball: `CHANGELOG.md`, `.clippy.toml`, `committed.toml`, `CONTRIBUTING.md`, `deny.toml`, `.github/`, `.pre-commit-config.yaml`, `release.toml`. All of these are excluded via the `include` list in `Cargo.toml` — expected and benign.
+  
+  Manifest comparison: `Cargo.toml.orig` in the tarball is byte-identical to `Cargo.toml` in upstream at the tagged commit. No differences whatsoever.
+  
+  ## Code review findings
+  
+  Thoroughness level: **high** — the crate is 52 lines of Rust in a single file, trivially small enough to read with full attention.
+  
+  ### File map
+  
+  - `src/lib.rs` (52 lines): **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: not present (positive)
+  - **proc-macro**: not a proc-macro crate (positive)
+  - **unsafe blocks**: zero `unsafe` usage in the entire crate (positive)
+  - **FFI surface**: none (positive)
+  - **Dependencies**: zero dependencies (positive) — `[dependencies]` section in Cargo.toml is empty
+  
+  ### Detailed findings
+  
+  The entire crate consists of:
+  
+  1. A sealed trait pattern: `mod sealed { pub trait Sealed {} }` prevents downstream crates from implementing the `IsTerminal` trait on their own types.
+  
+  2. A public `IsTerminal` trait with a single method `fn is_terminal(&self) -> bool`.
+  
+  3. A macro `impl_is_terminal!` that generates `Sealed` and `IsTerminal` implementations for a list of types. Each implementation simply delegates to `std::io::IsTerminal::is_terminal(self)`.
+  
+  4. The macro is invoked for: `std::fs::File`, `std::io::Stdin`, `std::io::StdinLock`, `std::io::Stdout`, `std::io::StdoutLock`, `std::io::Stderr`, `std::io::StderrLock`. These are exactly the types that implement `std::io::IsTerminal` in the standard library.
+  
+  The code does exactly what it claims: it re-exports the standard library's `IsTerminal` functionality through its own trait, providing API compatibility for code that was written against this crate before `std::io::IsTerminal` was stabilized (Rust 1.70).
+  
+  ### Claims vs reality reconciliation
+  
+  - Claimed: polyfill for `is_terminal` stdlib feature. **Confirmed**: delegates directly to `std::io::IsTerminal`.
+  - No network access, no filesystem writes, no process spawning, no environment variable reads, no unsafe code, no FFI, no dependencies. The crate exercises zero capabilities beyond what its stated purpose requires.
+  
+  ### Red-flag scan
+  
+  - No `unsafe`, `transmute`, `from_raw`, raw pointers
+  - No `std::process::Command`, shell invocation
+  - No `std::env::var` / `std::env::vars`
+  - No network libraries
+  - No `include_bytes!` / `include_str!`
+  - No base64/hex blobs or obfuscated strings
+  - No `unwrap` / `expect` / `panic!`
+  - No conditional compilation beyond `#[cfg_attr(docsrs, feature(doc_auto_cfg))]` which is standard docs.rs configuration
+  - No `Drop` impls
+  - No custom serde deserializers
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. The entire crate (one file, 52 lines) was read in full with careful analysis.
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: high
+  - understanding: high
+----- SIGN CREV PROOF -----
+UOE5UyrX1ARMH_BstmJb41XK2lfUOXP1XUfRqs_52nmEOE2ywf6HBV7SHd1UqTrGJN_4O2KsjQ-iiVbX5ecoBA
+----- END CREV PROOF -----
+
