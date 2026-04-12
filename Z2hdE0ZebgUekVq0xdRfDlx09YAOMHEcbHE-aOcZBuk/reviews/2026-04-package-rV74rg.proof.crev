@@ -8155,3 +8155,138 @@ comment: |-
 pGL3b3m8G9mmNHJI83Wd4RJCwpmY9AqCQd_bH3E5C09CCwvm1roZsqupJ-jGZtaJyNlEQw9V8xMcw-XwJI3mAw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T16:52:22+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: darling_macro
+  version: 0.20.11
+  digest: 2khG1oC8xWMp3bzHMZg_lGVG-zKKt_fFC7vgabjIDCc
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: darling_macro 0.20.11
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/darling_macro-0.20.11
+  - Upstream repository: https://github.com/TedDriggs/darling
+  - Upstream commit verified: 82a51e0b65b158de02ffb5d753ea4cd03529743b
+  - Upstream tag for version: v0.20.11
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/TedDriggs/darling at commit
+  `82a51e0b65b158de02ffb5d753ea4cd03529743b`, which is the commit tagged as
+  `v0.20.11` corresponding to version 0.20.11. The sha from `.cargo_vcs_info.json`
+  matches the tag exactly. All files under `macro/` in the upstream repo are
+  bit-for-bit identical to the crates.io tarball (excluding expected cargo-added
+  files: Cargo.toml, Cargo.toml.orig, .cargo_vcs_info.json, Cargo.lock).
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** (33 Rust LoC, small enough for careful end-to-end read).
+  
+  ### Claims baseline
+  
+  The crate describes itself as "Internal support for a proc-macro library for reading
+  attributes into structs when implementing custom derives." It is the proc-macro
+  entry-point crate for the `darling` ecosystem, providing derive macros (`FromMeta`,
+  `FromDeriveInput`, `FromAttributes`, `FromField`, `FromTypeParam`, `FromVariant`)
+  that delegate all real logic to `darling_core`.
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**. 40 lines total. This is the only Rust source file.
+  - `Cargo.toml.orig` — **read in full**. Manifest with 3 dependencies.
+  - `LICENSE` — present (MIT).
+  
+  ### Non-negotiable checks
+  
+  - **`build.rs`**: Not present. Positive.
+  - **Proc-macro**: Yes, `proc-macro = true` in Cargo.toml. All 7 `#[proc_macro_derive]`
+    functions reviewed. Each one is a trivial delegation:
+    1. `derive_from_meta` — parses input via `syn::parse_macro_input!`, delegates to
+       `darling_core::derive::from_meta`, converts result to `TokenStream`.
+    2. `derive_from_meta_item` — **deprecated stub**: does not parse input at all, just
+       emits a compile error telling users the trait was renamed. The `_input` parameter
+       is intentionally unused. No processing of attacker-controlled input.
+    3. `derive_from_attributes` — same delegation pattern as #1, to `derive::from_attributes`.
+    4. `derive_from_input` — delegates to `derive::from_derive_input`.
+    5. `derive_field` — delegates to `derive::from_field`.
+    6. `derive_type_param` — delegates to `derive::from_type_param`.
+    7. `derive_variant` — delegates to `derive::from_variant`.
+    All real logic lives in `darling_core`; this crate is purely a proc-macro entry-point shim.
+  - **`unsafe`**: None. `rg -n unsafe` returns no hits.
+  - **FFI surface**: None.
+  - **Dependencies**: `quote 1.x`, `syn 2.x`, `darling_core =0.20.11`. All expected for a
+    proc-macro derive crate. No surprising or unrelated dependencies.
+  
+  ### Red-flag scan
+  
+  - No `unsafe`, `transmute`, `from_raw`, raw pointers.
+  - No `std::process::Command`, shell invocation.
+  - No `std::env::var`, env var access.
+  - No network libraries (`reqwest`, `ureq`, etc.).
+  - No `include_bytes!`, `include_str!`.
+  - No base64/hex blobs, obfuscated strings.
+  - No `unwrap`/`expect`/`panic!` (only `parse_macro_input!` which produces compile errors on failure).
+  - No conditional compilation.
+  - No `Drop` impls.
+  
+  ### Architecture summary
+  
+  This crate is a thin proc-macro entry-point. It exists solely because Rust requires
+  proc-macro crates to be separate from the logic crate. Each derive macro parses the
+  input token stream using `syn`, hands it to the corresponding `darling_core::derive::*`
+  function, and converts the resulting `proc_macro2::TokenStream` back to
+  `proc_macro::TokenStream`. The `FromMetaItem` derive is a deprecated compatibility
+  stub that emits a compile error directing users to `FromMeta`. The crate does nothing
+  beyond delegation — all complexity, parsing, and code generation lives in `darling_core`.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to be internal proc-macro support for darling. That is exactly what
+  the code does — 7 derive macros, all delegating to `darling_core`, no extra capabilities.
+  No network, filesystem, process, env, FFI, or unsafe usage. Fully consistent with claims.
+  
+  ## Cross-check against existing reviews
+  
+  One prior review exists: version 0.9.0 reviewed by dpc (FYlr8YoYGVvDwHQxqEIs89reKKDy-oWisoO0qXXEfHE)
+  on 2019-10-11, rated `positive` at `low` thoroughness and `low` understanding.
+  
+  The prior review has no comment text, so there are no specific findings to compare against.
+  The `positive` rating is consistent with my findings — the crate is a straightforward,
+  safe proc-macro shim. The code structure has evolved slightly since 0.9.0 (added
+  `FromAttributes` derive, deprecated `FromMetaItem`), but the fundamental pattern is
+  identical: thin delegation to `darling_core`.
+  
+  Verdict: existing review does not change my proposed fields. My `medium` thoroughness is
+  justified by the complete end-to-end read of all code in this very small crate.
+  
+  ## Open questions / things skipped
+  
+  - The `Cargo.lock` file was not reviewed (it's a lockfile for the proc-macro crate,
+    not shipped to downstream users).
+  - The actual logic in `darling_core` is out of scope for this review — that would be
+    a separate crev review of `darling_core 0.20.11`.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+rvb8k1JQ4eDHl5Yn77kiBzChQuD3m7AMmYxHQ3oVJkG1iN2OvIDBb2G9oG1OuxgSdpzkP7KMvXHme3Ivaw-KAw
+----- END CREV PROOF -----
+
