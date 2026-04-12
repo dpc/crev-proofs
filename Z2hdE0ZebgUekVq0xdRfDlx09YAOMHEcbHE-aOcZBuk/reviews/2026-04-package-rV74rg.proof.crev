@@ -2221,3 +2221,124 @@ comment: |-
 BMVNlGSAD0Pq01avovEdNeY5x_pelOprEyNIZvp2tk2oKl5OAr-USYHHT8lOdo22v2uAbVqgDtrW4R0jjyeWAQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T05:40:21+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: option-ext
+  version: 0.2.0
+  digest: 4y3CPE0zfhHSFKEyRkN9Us1bpy_ll2-GJ-QcknqXLl0
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: option-ext 0.2.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/option-ext-0.2.0
+  - Upstream repository: https://github.com/soc/option-ext
+  - Upstream commit verified: a582525c8584889c2a7dd1818c5d958e1e7f918c (release 0.2.0 commit)
+  - Upstream tag for version: n/a (no version tag; matched by commit message "release 0.2.0")
+  - `.cargo_vcs_info.json` sha: 272f22fc9ea1ac6b08f01704af52c4ac338df4e2 (NOT found in upstream history)
+  - Verification outcome: partial
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `272f22fc9ea1ac6b08f01704af52c4ac338df4e2`, which does not
+  exist in the upstream repository's commit history. The upstream repo has 6 commits total; the
+  commit whose message is "release 0.2.0, adds `map_or2` and `map_or_else2`" is
+  `a582525c8584889c2a7dd1818c5d958e1e7f918c`. Comparing the crate tarball against that commit:
+  
+  - `src/impl.rs`: identical.
+  - `Cargo.toml.orig` vs upstream `Cargo.toml`: identical.
+  - `README.md`: identical.
+  - `src/lib.rs`: minor doc wording differences only. The crate version uses slightly abbreviated
+    phrasing in the `map_or2` and `map_or_else2` doc comments (e.g. "provided default result" vs
+    upstream's "provided `default` value"; removed backtick formatting on parameter names). These
+    are cosmetic documentation edits, not code changes.
+  - `LICENSE.txt`: not checked against upstream (only present in later commits).
+  
+  The VCS sha mismatch is explained by these minor doc edits being made after the release commit
+  but before `cargo publish`. This is a benign discrepancy — no code changes, only doc rewording.
+  No version tag exists; the repo doesn't use tags.
+  
+  ## Code review findings
+  
+  - Thoroughness level: **high** (26 Rust LoC, trivially small crate — read every line carefully)
+  - Understanding: **high** (entirely straightforward delegation to std)
+  
+  ### Claims baseline
+  
+  The crate claims to extend `Option` with three methods: `contains`, `map_or2`, and `map_or_else2`.
+  No dependencies, no unsafe, no build script, no proc macros, no I/O, no network, no FFI.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** — read in full. Defines the `OptionExt<T>` trait with three methods. All methods
+    have correct doc comments with examples. Uses `#[must_use]` on all methods. No unsafe, no
+    red flags. The trait is generic over `T` with appropriate bounds (`PartialEq<T>` for `contains`,
+    `FnOnce` for the map variants).
+  
+  - **src/impl.rs** — read in full. Implements `OptionExt<T>` for `Option<T>`.
+    - `contains`: pattern-matches on `Some(ref y)` and delegates to `x == y`. Correct.
+    - `map_or2`: delegates to `self.map_or(default, f)` (swapping argument order from the trait
+      signature, which puts `f` first and `default` second, to std's `map_or` which takes `default`
+      first and `f` second). This is the crate's raison d'etre — a more ergonomic argument order.
+      Correct and `#[inline]`.
+    - `map_or_else2`: same pattern, delegates to `self.map_or_else(default, f)`. Correct and
+      `#[inline]`.
+  
+  - **Cargo.toml.orig** — read in full. Zero dependencies. No build script. No features. No
+    proc-macro. License MPL-2.0.
+  
+  - **README.md** — read in full. Matches crate behavior accurately.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: none present. Positive.
+  - **Dependencies**: zero. Positive.
+  - **Proc-macro**: not a proc-macro crate. Positive.
+  - **unsafe blocks**: none (`rg -n 'unsafe'` returns nothing). Positive.
+  - **FFI surface**: none. Positive.
+  
+  ### Red-flag scan
+  
+  No hits for any red-flag patterns (unsafe, transmute, Command, env::var, reqwest, include_bytes,
+  base64 literals, obfuscated strings, unbounded allocations, conditional compilation beyond
+  standard). The crate is pure safe Rust with zero dependencies.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to extend `Option` with `contains`, `map_or2`, and `map_or_else2`. That is
+  exactly what it does — nothing more, nothing less. No hidden capabilities.
+  
+  Note: `Option::contains` was stabilized in Rust 1.70.0, so the `contains` method in this crate
+  is now redundant for users on modern Rust. This is not a security concern but worth noting for
+  downstream consumers.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. The entire crate was read line by line.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: high
+  - understanding: high
+----- SIGN CREV PROOF -----
+ptBmzWYffFt3IZs_epWthq5Ta5YOjJUFweVW-l7O8XCiMAMBMST3Smsc0CzAxAliIzarUtyUliI_WzpQf2qaDQ
+----- END CREV PROOF -----
+
