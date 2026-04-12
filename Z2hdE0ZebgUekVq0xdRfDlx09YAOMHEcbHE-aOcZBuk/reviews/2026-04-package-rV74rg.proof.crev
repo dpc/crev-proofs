@@ -4831,3 +4831,101 @@ comment: |-
 Wa2WFrjCO6CKpqYGiur5GgBd53CgAXJeKBeY7mayS1vY4At_156hC1B4WbztKBRFnsvo9X3d7HLxyFYlHPaNAw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T07:46:41+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: fs-lock
+  version: 0.1.10
+  digest: n4RvLrvYOxXeeJ_vdjJWck98HATpDuMLOHZbQYgz7i8
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: fs-lock 0.1.10
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-lock-0.1.10
+  - Upstream repository: https://github.com/cargo-bins/cargo-binstall
+  - Upstream commit verified: 08cf94c5bf37872cae7005e5537458ed851877c7
+  - Upstream tag for version: fs-lock-v0.1.10
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/cargo-bins/cargo-binstall at commit `08cf94c5bf37872cae7005e5537458ed851877c7`, tagged `fs-lock-v0.1.10`. The `.cargo_vcs_info.json` sha and the version tag point at the same commit. `diff -r --brief` between crate source and upstream `crates/fs-lock/` (the `path_in_vcs`) shows only the expected tarball-only files (`Cargo.toml.orig`). `Cargo.toml.orig` is byte-identical to upstream's `Cargo.toml`. All other files bit-for-bit identical.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — crate is 118 LoC in a single file, small enough to read carefully end-to-end.
+  
+  ### Claims baseline
+  
+  The crate claims to provide "Locked files that can be used like normal `File`s", using the same mechanisms as Cargo. It depends on `fs4` for the actual file-locking primitives and optionally on `tracing` for logging unlock errors.
+  
+  ### File map
+  
+  - `src/lib.rs` (167 lines): **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: Zero `unsafe` blocks in the entire crate. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  - **Dependencies**: `fs4 = "0.13.0"` (file locking — justified, that's the crate's purpose) and `tracing = "0.1"` (optional, for logging — justified). No suspicious dependencies.
+  
+  ### Red-flag scan
+  
+  Searched for: `unsafe`, `transmute`, `from_raw`, `Command::new`, `std::env::var`, `reqwest`, `include_bytes!`, `include_str!`, `extern "C"`, base64/hex blobs. Zero hits.
+  
+  ### Architectural summary
+  
+  The crate defines a single type `FileLock` that wraps `std::fs::File` and acquires a file lock (exclusive or shared) via the `fs4` crate on construction. It releases the lock on `Drop`. It implements `Deref`/`DerefMut` to `File`, plus `io::Read`, `io::Write`, and `io::Seek` by delegating to the inner `File`. An optional `tracing` feature logs warnings if unlocking fails during drop.
+  
+  ### Detailed findings
+  
+  1. **Lines 18-36 (`new`, `new_exclusive`)**: Clean constructor pattern. `FileExt::lock_exclusive` is called, and on success the file is wrapped. No issues.
+  
+  2. **Lines 45-54 (`new_try_exclusive`)**: Non-blocking lock attempt. The error handling checks `try_lock_exclusive` return value and also handles the case where the error's `raw_os_error()` matches `fs4::lock_contended_error()`. This double-check for lock contention (both `Ok(false)` and the specific error code) is defensive and correct.
+  
+  3. **Lines 59-81 (`new_shared`, `new_try_shared`)**: Mirror of exclusive lock methods. Same pattern, same correctness.
+  
+  4. **Lines 84-91 (`set_file_path`)**: Stores path for tracing on unlock error. The `#[cfg(feature = "tracing")]` guard correctly compiles away the field when tracing is disabled. Minor style note: using `self.1` for tuple struct field access is less readable than a named field, but not a correctness issue.
+  
+  5. **Lines 93-117 (`Drop` impl)**: Calls `FileExt::unlock`. The result is intentionally discarded when `tracing` is not enabled (via `let _res = ...`). With `tracing`, a `warn!` is emitted on unlock failure. The `Drop` impl's side effect is limited to unlocking and optionally logging — both appropriate.
+  
+  6. **Lines 119-130 (`Deref`/`DerefMut`)**: Standard delegation. Correct.
+  
+  7. **Lines 132-166 (`Write`/`Read`/`Seek` impls)**: Straightforward delegation to the inner `File`. All methods match the standard library signatures. Correct.
+  
+  ### Reconciliation against claims baseline
+  
+  The crate does exactly what it claims: wraps a `File` with a lock, delegates I/O, and unlocks on drop. No capabilities beyond filesystem locking and optional logging. No network access, no process spawning, no env var reading, no FFI.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped — the entire crate is a single 167-line file, read in full.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+TghOHwYa7uCFWiWUZtfQ2HGmgYzR5NZhwkgzAkNPOYvifdtYB68FaVqnPlsL98nnkJ7uyKGcI1NfpBW5UfCUBg
+----- END CREV PROOF -----
+
