@@ -7617,3 +7617,149 @@ comment: |-
 GjQERgAgW93lDpqOGXPb9pp5GsHsDEATSNDdogSgIl3gtksZu4q1yDWPoWA5xljng7mZiUCKYdon8-0umcVQAw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T16:32:04+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: tracing-test-macro
+  version: 0.2.6
+  digest: zicY-T24bhoHwBVlJc6CDu7LZ_5n64xBCUhvyDLyJ2o
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: tracing-test-macro 0.2.6
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tracing-test-macro-0.2.6
+  - Upstream repository: https://github.com/dbrgn/tracing-test
+  - Upstream commit verified: 31f16ca7d635d02e6b2ed3ddbefe09164b262f2e
+  - Upstream tag for version: v0.2.6
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/dbrgn/tracing-test at commit
+  `31f16ca7d635d02e6b2ed3ddbefe09164b262f2e`, which is the commit tagged `v0.2.6`.
+  Manifest (`Cargo.toml.orig`) is identical to upstream `Cargo.toml`. Source file
+  `src/lib.rs` is bit-for-bit identical. The only extra file in the crate tarball
+  is `README.md`, which is expected since the upstream manifest references
+  `readme = "../README.md"` (the workspace-level README) and `cargo publish`
+  inlines it.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** (106 Rust LoC, single file — small enough to
+  read carefully end-to-end).
+  
+  ### Claims baseline
+  
+  The crate claims to be a procedural macro companion to `tracing-test`. It
+  provides a `#[traced_test]` attribute that sets up a global tracing subscriber
+  backed by a mock writer, injects `logs_contain` and `logs_assert` helper
+  functions into the test body, and manages per-test scopes by function name
+  (appending counters on collision).
+  
+  ### File map
+  
+  - `src/lib.rs` (162 lines) — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: `quote = "1"` and `syn = { version = "2", features = ["full"] }`.
+    Both are standard proc-macro dependencies, consistent with the crate's purpose.
+    No unexpected dependencies.
+  - **Proc-macro**: Yes, `proc-macro = true`. The single `#[proc_macro_attribute]`
+    function `traced_test` was read in full (see below).
+  - **`unsafe` blocks**: None. Confirmed via search. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  
+  ### Detailed findings
+  
+  1. **`registered_scopes()` (lines 24–27)**: Uses `OnceLock<Mutex<Vec<String>>>`
+     to track registered scope names. This is compile-time state within the
+     proc-macro, not runtime state in the user's binary. The `Mutex` is only locked
+     during macro expansion (single-threaded in rustc today, but safe regardless).
+     The `.unwrap()` on the mutex lock (line 32) is acceptable — the only way a
+     mutex is poisoned is if a thread panicked while holding it, and since this is
+     a proc-macro invoked by the compiler, that would have already aborted
+     compilation. No concern.
+  
+  2. **`get_free_scope()` (lines 31–41)**: Deduplicates scope names by appending
+     a counter. The `replace_range` call (line 37) operates on `len..`, which
+     is the original length of the function name, so on subsequent iterations it
+     replaces only the previously appended counter. Correct behavior, confirmed
+     by the test at line 145. Minor note: the counter starts at 1 but the first
+     appended suffix is "2" (counter is incremented before use), so the sequence
+     is `name`, `name2`, `name3`, etc. This is intentional and tested.
+  
+  3. **`traced_test()` (lines 52–138)**: The main proc-macro attribute. It:
+     - Parses the annotated function as `ItemFn`.
+     - Gets a unique scope name.
+     - Checks `cfg!(feature = "no-env-filter")` at macro expansion time (correctly
+       noting in a comment that this must be evaluated in the macro crate's context).
+     - Constructs five statements via `quote!` and injects them at the start of
+       the function body:
+       a. `INITIALIZED.call_once(...)` — sets up a global tracing subscriber with
+          a mock writer. Uses `module_path!()` to derive the crate name for the
+          env filter.
+       b. `let span = tracing::info_span!(#scope)` — creates a named span.
+       c. `let _enter = span.enter()` — enters the span.
+       d. `fn logs_contain(val: &str) -> bool` — local helper.
+       e. `fn logs_assert(...)` — local helper for arbitrary assertions.
+     - All generated code references `tracing_test::internal::*`, which is the
+       companion crate's API. The macro itself does not perform I/O, network
+       access, or any side effect beyond code generation.
+     - The `.expect()` calls (lines 54, 88, 95, 102, 112, 127) are on `parse()`
+       results of `quote!`-generated token streams. These are compile-time panics
+       that would only trigger if the `quote!` output is syntactically invalid,
+       which would be a bug in this crate, not a runtime failure. Acceptable.
+  
+  4. **Test module (lines 140–161)**: Single test for `get_free_scope` that
+     verifies the deduplication logic including edge cases with conflicting
+     manually-inserted entries. Clean and correct.
+  
+  5. **No red flags found**: No `unsafe`, no `transmute`, no `Command::new`,
+     no `std::env::var`, no network access, no `include_bytes!`, no obfuscated
+     strings, no suspicious `#[cfg]` blocks, no `Drop` impls, no serde
+     deserializers.
+  
+  ### Architectural summary
+  
+  This is a straightforward proc-macro attribute that injects tracing setup
+  boilerplate into test functions. It depends entirely on the companion
+  `tracing-test` crate for the actual subscriber/writer infrastructure. The
+  macro's own logic is limited to scope name deduplication and code generation
+  via `quote!`/`syn`. The design is clean, minimal, and does exactly what it
+  claims.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `Cargo.lock` was not reviewed (lockfile for the crate's own test/dev deps;
+    not security-relevant for a proc-macro that only depends on `quote` and `syn`).
+  - `README.md` was not reviewed (documentation only, inlined from workspace root).
+  - `LICENSE-APACHE` and `LICENSE-MIT` were not reviewed (standard license files).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+WQaEBE3VPVJyAcUscY2SfiDHuqOHn3o2xM2bVW9aPlctSef90QrSO6pTy3w4HBMz5cKKm8Id-i-YDguT_glmCA
+----- END CREV PROOF -----
+
