@@ -4608,3 +4608,91 @@ comment: |-
 phn0lve5GgdIw1exwkr2I57JlKfE7hEXY-az2UIt1WrEXh-zv8KSzOUxb6fr8-Ps8xMiDvdt4_XFJUHJHepOBQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T07:38:46+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: hmac-sha1
+  version: 0.2.2
+  digest: zhuMJ42JVVDij4shMyOgwaZKK5c75PfuS6eRgHKL5Ds
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: hmac-sha1 0.2.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hmac-sha1-0.2.2
+  - Upstream repository: https://github.com/pantsman0/rust-hmac-sha1
+  - Upstream commit verified: fe52bff40ec3b100c2154ac522de3fb463fc4083
+  - Upstream tag for version: n/a (no tags in upstream repo)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records commit `fe52bff40ec3b100c2154ac522de3fb463fc4083`. The upstream repository at https://github.com/pantsman0/rust-hmac-sha1 was cloned and checked out at that commit. A recursive diff of the crate tarball against the upstream tree shows only line-ending differences (CRLF vs LF) across all files — `src/lib.rs`, `LICENSE`, `README.md`, and `Cargo.toml.orig` vs upstream `Cargo.toml` are content-identical. No version tags exist in the upstream repo, but the vcs_info sha resolves cleanly. The Cargo.toml.orig matches the upstream Cargo.toml exactly (modulo line endings).
+  
+  ## Code review findings
+  
+  - Thoroughness level: **medium** (justified: crate has only 1 Rust source file with ~17 lines of non-test code; small enough to read carefully end-to-end)
+  
+  ### Claims baseline
+  
+  The crate claims to be "a simple wrapper around the RustCrypto hmac and sha1 crates for simple HMAC-SHA1 generation." The README explicitly notes the crate is a thin convenience wrapper and even shows how to replace it with direct RustCrypto usage.
+  
+  ### Per-file map
+  
+  - `src/lib.rs` — **read in full** (104 lines total; 17 lines of library code, 87 lines of tests)
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: Not present. Positive.
+  - **proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: Zero `unsafe` blocks found via grep. Positive.
+  - **FFI surface**: None. No `extern "C"`, no bindgen, no linked C libraries. Positive.
+  - **Dependencies**: `hmac = "0.12.1"` and `sha1 = "0.10.6"` — both are well-known RustCrypto crates, entirely consistent with the crate's stated purpose. `hex = "0.4.3"` is dev-only (test output formatting). No suspicious or unexpected dependencies.
+  
+  ### Red-flag scan
+  
+  - No `unsafe`, `transmute`, `from_raw`, or raw pointer arithmetic.
+  - No `std::process::Command`, shell invocations, or env var access.
+  - No network libraries, no `include_bytes!`/`include_str!`.
+  - No obfuscated strings, base64 blobs, or large const byte arrays.
+  - No `#[cfg(...)]` conditional compilation.
+  - No custom `Drop` impls or custom serde deserializers.
+  - One `expect()` call on line 10: `Mac::new_from_slice(key).expect("HMAC algoritms can take keys of any size")`. This is correct — the HMAC `new_from_slice` for `Hmac<Sha1>` accepts any key length and the `InvalidLength` error variant is unreachable. The typo "algoritms" is cosmetic.
+  
+  ### Architectural summary
+  
+  The entire public API is one function (`hmac_sha1`) and one constant (`SHA1_DIGEST_BYTES = 20`). The function creates an `Hmac<Sha1>` instance from the RustCrypto `hmac` and `sha1` crates, feeds the message, and returns the 20-byte digest as a fixed-size array. The test suite includes 7 HMAC-SHA1 test vectors from RFC 2202, all verified against known expected outputs.
+  
+  ### Claims vs reality reconciliation
+  
+  - The crate claims to be a thin HMAC-SHA1 wrapper. Reality: it is exactly that — a single function delegating to RustCrypto. No capabilities beyond what is claimed. No filesystem, network, process, env, FFI, or unsafe usage.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. The entire crate was read in full.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+PlBkRyU0HrIJoTCy5eFLukw9ZuUyuMQZkvRy00kqthjHljA9gaY_1O52TQ3due9JF29cHU5ZGjRr4ep6lYZMBA
+----- END CREV PROOF -----
+
