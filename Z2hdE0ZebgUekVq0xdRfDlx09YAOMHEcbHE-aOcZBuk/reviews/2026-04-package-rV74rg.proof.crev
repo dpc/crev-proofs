@@ -2989,3 +2989,102 @@ comment: |-
 dSm098ef_rlFCsNzxNJ42XLr4MfH_jaC__t-lqBvOQKvwt8tKwOrEoq428l70YI6IMaUcmKtniWtonxI9K25Ag
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T06:18:24+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: lightning-macros
+  version: 0.1.0
+  digest: eHb5QK16qCnc0QBb2lri-mfkfz8xtQzgUXafC_AhnV0
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: lightning-macros 0.1.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lightning-macros-0.1.0
+  - Upstream repository: https://github.com/lightningdevkit/rust-lightning/
+  - Upstream commit verified: 66f794c07cb2d751ff7714103a3f7c19c27e93f8
+  - Upstream tag for version: v0.1.0-beta1 (matches VCS sha exactly; the later v0.1 tag at d3780237c is a subsequent merge)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` records sha `66f794c07cb2d751ff7714103a3f7c19c27e93f8` with `path_in_vcs: "lightning-macros"`. This sha matches the `v0.1.0-beta1` tag in the upstream repo. `diff -r --brief` between the crates.io source and the upstream `lightning-macros/` directory at that commit shows only the expected `Cargo.toml` rewrite by `cargo publish`. `Cargo.toml.orig` is identical to the upstream `Cargo.toml`. All source files are bit-for-bit identical.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** (51 Rust LoC — small enough for careful end-to-end read).
+  
+  ### Claims baseline
+  
+  The crate claims to provide "proc macros used by LDK". It is a proc-macro crate (`proc-macro = true`) that conditionally makes methods async based on an `async-interface` feature flag.
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full** (77 lines including license header and attributes)
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependency list**: `syn` 2.x, `proc-macro2` 1.x, `quote` 1.x — all standard proc-macro dependencies, entirely appropriate for the crate's purpose. No unexpected deps.
+  - **Proc-macro crate**: Yes, `proc-macro = true`. Two proc-macro entry points examined in full (see below).
+  - **Unsafe blocks**: None. The crate uses `#![forbid(unsafe_code)]` (line 16). Positive.
+  - **FFI surface**: None.
+  
+  ### Detailed code analysis
+  
+  **Crate attributes (lines 10–19):**
+  - `#![crate_name = "lightning_macros"]` — explicit crate name, fine.
+  - `#![cfg_attr(not(test), no_std)]` — no_std except during tests. Good hygiene for a proc-macro crate (proc macros run at compile time anyway, but this shows intent).
+  - `#![deny(missing_docs)]`, `#![forbid(unsafe_code)]`, `#![deny(rustdoc::broken_intra_doc_links)]`, `#![deny(rustdoc::private_intra_doc_links)]` — strict lint settings. Positive.
+  - `#![cfg_attr(docsrs, feature(doc_auto_cfg))]` — standard docs.rs feature gating.
+  
+  **`add_async_method` (lines 26–42):**
+  Private helper function. Takes a parsed `ImplItemFn`, emits two copies of it: one gated behind `#[cfg(not(feature = "async-interface"))]` (synchronous), one behind `#[cfg(feature = "async-interface")]` with `asyncness` set. The logic is straightforward: clone the parsed method, set `sig.asyncness`, emit both versions under complementary cfg gates. No side effects, no I/O, no env access.
+  
+  **`#[proc_macro_attribute] maybe_async` (lines 44–55):**
+  Public proc-macro attribute. Parses the input as `ImplItemFn`, delegates to `add_async_method`. On parse failure, emits a `compile_error!` with a clear message. Clean error handling. No panics on bad input.
+  
+  **`#[proc_macro] maybe_await` (lines 57–76):**
+  Public proc-macro (function-like). Takes an expression and emits it as-is under `#[cfg(not(feature = "async-interface"))]` and with `.await` appended under `#[cfg(feature = "async-interface")]`. Again, straightforward token manipulation with no side effects.
+  
+  ### Capabilities vs claims reconciliation
+  
+  The crate claims to provide proc macros for LDK. It provides exactly two macros (`maybe_async`, `maybe_await`) that conditionally add async syntax based on a feature flag. No capabilities beyond token manipulation are exercised. No filesystem, network, process, env, or FFI access. The code does exactly what it claims and nothing more.
+  
+  ### Red-flag scan results
+  
+  - `unsafe` — only appears in `#![forbid(unsafe_code)]`. No unsafe code.
+  - `transmute`, `from_raw`, `Command::new`, `std::env::var`, `reqwest`, `include_bytes!`, `include_str!`, `extern "C"` — none found.
+  - No base64 literals, hex blobs, obfuscated strings, or large const byte arrays.
+  - No `Drop` impls.
+  - No custom serde deserializers.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. The entire crate is a single 77-line file which was read in full.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+ljH_XH59zFJipcKRZOrMzjL5DdIE7QwQ9zM0Dkiet0pG-l2xzAjCCFwevcpAoftmcysUVauNly-9kFEgHpK6Cw
+----- END CREV PROOF -----
+
