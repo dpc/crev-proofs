@@ -15,3 +15,23 @@ trust: high
 tTeEiHip6pHOiCgYu_MN5E3MpyQeqJSrB4Qbu-n_j88C6Ftl9p6Uyhpq1riowkMF-rBKL5vDj_1vA47riAiECQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: trust
+version: -1
+date: 2026-04-11T19:10:03.164335579-07:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+ids:
+- id-type: crev
+  id: FYlr8YoYGVvDwHQxqEIs89reKKDy-oWisoO0qXXEfHE
+  url: https://github.com/dpc/crev-proofs
+trust: high
+comment: |-
+  After not using FYlr8YoYGVvDwHQxqEIs89reKKDy-oWisoO0qXXEfHE identity
+  for years, I can't remind myself the passphrase to unlock it.
+----- SIGN CREV PROOF -----
+l2ON9N7_TjRgKN04lSG1HBmOnAoRbIq8CR6lCrGRX4Y19FJAifnqWmoamLX0QFIFtRPtKUTXvZygxeq72yfpDQ
+----- END CREV PROOF -----
+
