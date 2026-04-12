@@ -3332,3 +3332,99 @@ comment: |-
 wpojAHSRYx6jaW0odHZm85xwxJeXiRpTiNBQfVMSrDEfprG0QZGobxbCQ9OfMFvsikc4-kHNSwy2IXB7U0qMAQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T06:31:12+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: aleph-bft-crypto
+  version: 0.9.1
+  digest: JCIFKTi7Df5gfmlkUjeDk_pB2f4W-FEX_61H4IJCa74
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: aleph-bft-crypto 0.9.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aleph-bft-crypto-0.9.1
+  - Upstream repository: https://github.com/Cardinal-Cryptography/AlephBFT
+  - Upstream commit verified: 22d44b6573f5036857cf7f9184a8533ccee7f2d9
+  - Upstream tag for version: n/a (no version tag found; commit identified via `.cargo_vcs_info.json`)
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to provide "utilities for node addressing and message signing in the aleph-bft package." It is a trait-definition and data-structure crate: it defines abstractions for keychains, signatures, multisignatures, and node indexing/counting for use by the AlephBFT consensus protocol. It does not claim to perform any I/O, networking, or filesystem operations.
+  
+  ## External verification
+  
+  Package source at the checked-out commit (`22d44b6`) is bit-for-bit identical to the crates.io tarball. All three source files (`lib.rs`, `node.rs`, `signature.rs`), `README.md`, and `Cargo.toml.orig` match upstream's `crypto/` subdirectory exactly. No version-specific tag exists in the upstream repository, but the `.cargo_vcs_info.json` sha resolves to a valid commit ("Bump Rust to 1.79 (from 1.77) (#499)") and the source matches cleanly.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — 771 LoC (estimated), small enough to read end-to-end carefully.
+  
+  ### File map
+  
+  - `src/lib.rs` (12 lines) — **read in full**. Re-exports from `node` and `signature` modules. No logic.
+  - `src/node.rs` (367 lines) — **read in full**. Defines `NodeIndex`, `NodeCount`, `NodeMap<T>`, `NodeSubset` types with SCALE codec encoding/decoding, arithmetic ops, and iterators. Includes tests.
+  - `src/signature.rs` (637 lines) — **read in full**. Defines trait hierarchy (`Signature`, `Keychain`, `MultiKeychain`, `PartialMultisignature`, `Signable`) and wrapper types (`UncheckedSigned`, `Signed`, `Indexed`, `Multisigned`, `PartiallyMultisigned`). Includes comprehensive tests with a mock keychain.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **`unsafe` blocks**: Zero `unsafe` in the entire crate. Positive.
+  - **FFI surface**: None. No `extern "C"`, no bindgen, no linked C libraries.
+  - **Dependencies**: `async-trait 0.1`, `bit-vec 0.8`, `parity-scale-codec 3.0`, `derive_more 1.0`, `log 0.4`. All are well-known, appropriate for a trait-definition crate with SCALE encoding. No surprising or unjustified dependencies.
+  
+  ### Red-flag scan results
+  
+  - No `unsafe`, `transmute`, `from_raw`, raw pointers.
+  - No `Command::new`, `std::env::var`, network crates, `include_bytes!`/`include_str!`.
+  - No obfuscated strings, base64 blobs, or suspicious `const` byte arrays.
+  - No `unwrap`/`expect`/`panic!` in non-test code (only in `#[cfg(test)]` blocks).
+  - `assert_eq!` in `Signed::sign()` (signature.rs:194) verifies the signable's index matches the keychain's index — this is a programming-error assertion, not untrusted-input handling. Acceptable.
+  
+  ### Architecture summary
+  
+  The crate defines a clean trait hierarchy for cryptographic operations in a BFT consensus setting. `Keychain` provides single-node signing/verification; `MultiKeychain` extends it with multisignature aggregation. `UncheckedSigned<T,S>` wraps data with an unverified signature; calling `.check()` upgrades it to `Signed<T,K>` (type-state pattern ensuring signatures are verified before use). `PartiallyMultisigned` is an enum tracking whether enough signatures have been collected. The `Indexed<T>` wrapper attaches a `NodeIndex` to data that doesn't natively implement `Index`, with the property that `Indexed<T>.hash() == T.hash()` so individual signatures aggregate correctly. `NodeMap<T>` is a sparse `Vec<Option<T>>` indexed by `NodeIndex`; `NodeSubset` is a `BitVec<u32>` for membership tracking.
+  
+  ### Claims vs reality reconciliation
+  
+  The code exercises no capabilities beyond what is claimed. There is no I/O, no networking, no filesystem access, no process spawning, no environment variable reading. The only non-trivial runtime behavior is SCALE encoding/decoding and arithmetic. The crate does exactly what it says: defines node addressing and message signing abstractions.
+  
+  ### Minor observations
+  
+  1. `NodeIndex` encodes/decodes as a fixed 8-byte little-endian u64 (node.rs:16-29), which is different from SCALE's compact encoding. This is intentional (fixed-width for consensus compatibility) but worth noting.
+  2. `NodeCount::consensus_threshold` (node.rs:88) computes `2n/3 + 1`, which is the standard BFT threshold for `n` nodes. Correct.
+  3. `NodeSubset::Decode` (node.rs:256-277) properly validates trailing bits are zero, preventing non-canonical encodings. Good defensive coding.
+  4. `IntoIterator for NodeMap<T>` (node.rs:178-184) returns `Box<dyn Iterator>`, which adds an allocation. This is a minor style choice, not a bug.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version. This is expected for a niche BFT infrastructure crate with ~12K version downloads.
+  
+  ## Open questions / things skipped
+  
+  - Dev-dependency `tokio` is only used in test code; not examined in detail since tests are out of scope for the review's rating.
+  - No version tag found upstream; the commit message ("Bump Rust to 1.79") doesn't directly reference the 0.9.1 release, which is a minor release-engineering observation but the source matches perfectly.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+n_LLys97M-TuQGmiNsxwWTam0tBPEFJ8e8gc1UpmYi9NmqBbRnx7GwoHAvvR9s6EWfyJbTnds1BbBCAHC-CcBg
+----- END CREV PROOF -----
+
