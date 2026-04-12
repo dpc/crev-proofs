@@ -6971,3 +6971,140 @@ comment: |-
 -JlMWrWIPpzoTyHP6clagXquiOHyy_LCZDf-W4YwFYJjNS7heSf3duewd7j2DN9-UPVF2eGLHa0AOGmtu6tpBQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T16:07:21+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: inotify-sys
+  version: 0.1.5
+  digest: Zfn13JhF0QekTId4bGG35OBGMEbwwzOQjh2wSu-sH-o
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: inotify-sys 0.1.5
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/inotify-sys-0.1.5
+  - Upstream repository: https://github.com/hannobraun/inotify-sys
+  - Upstream commit verified: 57f7facfa12ae0aff2054972691b4cd5f5afc154
+  - Upstream tag for version: v0.1.5
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` sha `57f7facfa12ae0aff2054972691b4cd5f5afc154` matches the commit
+  tagged `v0.1.5` in the upstream repository. The commit message is "Update version".
+  
+  `diff -r --brief` between the crates.io source and the upstream checkout at this commit
+  shows only two files present upstream but absent from the tarball:
+  - `.travis.yml` — CI config, excluded via `Cargo.toml`'s `exclude` field
+  - `inotify-sys.sublime-project` — editor config, also excluded
+  
+  `Cargo.toml.orig` from the tarball is byte-identical to upstream's `Cargo.toml`.
+  
+  All other files are bit-for-bit identical. Verification passes cleanly.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — the crate has a single 713-line Rust file (`src/lib.rs`),
+  most of which is documentation comments. The actual code content is minimal enough for a
+  careful end-to-end read.
+  
+  **Claims baseline:** The crate claims to provide "inotify bindings for the Rust programming
+  language" — low-level, direct FFI bindings to the Linux inotify API. It advertises itself
+  as a thin wrapper, recommending the higher-level `inotify` crate for most users.
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**. This is the only Rust source file.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: Not present. Positive.
+  - **proc-macro**: Not present. Positive.
+  - **unsafe blocks**: None. The `extern` block (line 587) declares C functions but does not
+    itself contain `unsafe` code — callers must use `unsafe` to call these functions, which
+    is correct for FFI declarations.
+  - **FFI surface**: The crate declares four `extern` functions that bind to Linux kernel
+    inotify syscalls: `inotify_init`, `inotify_init1`, `inotify_add_watch`, `inotify_rm_watch`.
+    These are standard glibc wrappers around Linux syscalls, not third-party C libraries.
+    Additionally, `close` and `read` are re-exported from `libc` (line 709-712).
+  - **Dependencies**: Only `libc = "0.2"`, which is expected and appropriate for an FFI
+    bindings crate. No surprising dependencies.
+  
+  ### Detailed findings
+  
+  1. **Constants (lines 57-480)**: All `pub const` values define inotify event mask flags
+     and configuration flags. The values match the Linux kernel headers
+     (`/usr/include/sys/inotify.h` and `/usr/include/linux/inotify.h`). Verified:
+     - `IN_CLOEXEC` and `IN_NONBLOCK` are re-exported from `libc`, correct.
+     - Event flags (`IN_ACCESS` through `IN_IGNORED`) use the standard bitmask values.
+     - Combination flags (`IN_MOVE`, `IN_CLOSE`, `IN_ALL_EVENTS`) are correctly composed
+       from their constituent flags using bitwise OR.
+     - Configuration flags (`IN_ONLYDIR`, `IN_DONT_FOLLOW`, `IN_EXCL_UNLINK`,
+       `IN_MASK_ADD`, `IN_ONESHOT`) have correct values.
+  
+  2. **`inotify_event` struct (lines 499-584)**: `#[repr(C)]` struct with fields `wd: c_int`,
+     `mask: u32`, `cookie: u32`, `len: u32`. This matches the C `struct inotify_event`
+     definition. The variable-length `name` field is intentionally omitted (documented in
+     the `len` field's doc comment), which is the standard Rust approach for
+     variable-length C structs. `#[derive(Clone, Copy, Debug)]` is appropriate.
+     `#[allow(non_camel_case_types)]` is correct since it mirrors the C naming.
+  
+  3. **`extern` block (lines 587-707)**: Declares four standard inotify functions with
+     correct signatures:
+     - `inotify_init() -> c_int` — correct.
+     - `inotify_init1(flags: c_int) -> c_int` — correct.
+     - `inotify_add_watch(fd: c_int, pathname: *const c_char, mask: u32) -> c_int` — correct.
+     - `inotify_rm_watch(fd: c_int, wd: c_int) -> c_int` — correct.
+     All match the glibc function signatures.
+  
+  4. **Re-exports (lines 709-712)**: `close` and `read` from `libc`. These are standard
+     POSIX functions needed to interact with inotify file descriptors. Appropriate.
+  
+  5. **No red flags found**: No `unsafe` blocks, no process spawning, no environment variable
+     access, no network calls, no obfuscated strings, no `include_bytes!`, no `transmute`,
+     no conditional compilation tricks. The crate does exactly what it claims — provides
+     type definitions and FFI declarations for the inotify API.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to be "inotify bindings for the Rust programming language". The code
+  contains exclusively: inotify constant definitions, one `#[repr(C)]` struct matching the
+  kernel's `inotify_event`, four `extern` function declarations for the standard inotify
+  syscall wrappers, and re-exports of `close`/`read` from `libc`. No capabilities are
+  exercised beyond what the claim implies. The code is entirely passive — it defines types
+  and declares external symbols, performing no computation, I/O, or side effects of its own.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version found in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  - Did not verify the `inotify_event` struct field ordering against the actual kernel
+    header file on disk; relied on knowledge of the standard definition. The struct is
+    well-documented in the inotify(7) man page and the field order matches.
+  - Did not read test files (none present in the crate).
+  - Did not read `CHANGELOG.md`, `CONTRIBUTING.md`, `README.md`, `LICENSE` — these are
+    non-code files that don't affect the crate's behavior.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+rVkjygwwGP4WwnkXDwEH0HpiN8-rM5R6VKXnwrC8pm-BZQqnbDrl7ry3Y9JyNl1-IcywBCNr_pXqf2N47dXnAQ
+----- END CREV PROOF -----
+
