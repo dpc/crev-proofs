@@ -5255,3 +5255,154 @@ comment: |-
 UOE5UyrX1ARMH_BstmJb41XK2lfUOXP1XUfRqs_52nmEOE2ywf6HBV7SHd1UqTrGJN_4O2KsjQ-iiVbX5ecoBA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T08:09:47.654561352+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: ntimestamp
+  version: 1.0.0
+  digest: d9-K8X3t_Pbwk5jQ6N1WzZkvQrFzpOdYHJr_BEdqofc
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: ntimestamp 1.0.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ntimestamp-1.0.0
+  - Upstream repository: https://github.com/nuhvi/timestamp
+  - Upstream commit verified: ad9691c9aa1124cd1211462b30263b93587ec303
+  - Upstream tag for version: v1.0.0 (annotated tag pointing to the same commit)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/nuhvi/timestamp at commit
+  `ad9691c9aa1124cd1211462b30263b93587ec303`, tagged `v1.0.0`. The `.cargo_vcs_info.json`
+  sha matches the tag target. `diff -r --brief` of all non-cargo-metadata files shows
+  zero differences. `Cargo.toml.orig` is identical to upstream `Cargo.toml`. All files
+  bit-for-bit identical.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — Single file, 306 LoC (including tests). Small enough
+  to read end-to-end carefully.
+  
+  ### Claims baseline
+  
+  The crate claims to provide a strictly monotonic unix timestamp in microseconds.
+  It stores timestamps as u64, uses the lower 8 bits as a random clock_id for
+  cross-process uniqueness, and guarantees monotonicity within a single factory via
+  `max(system_time, last_time + step)`. Optional features: serde serialization,
+  base32 Crockford encoding for sortable strings, and HTTP date formatting.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: Zero `unsafe` blocks anywhere in the crate. Positive.
+  - **FFI surface**: None. Positive.
+  - **Dependencies**: `once_cell` (lazy static), `document-features` (doc generation),
+    `getrandom` (random bytes for clock_id). All justified by the crate's purpose.
+    Optional deps `serde`, `base32`, `httpdate` are feature-gated and match advertised
+    features. WASM target additionally pulls `js-sys` for `Date.now()`, which is expected.
+    No suspicious dependencies.
+  
+  ### Per-file map
+  
+  - **src/lib.rs** (419 lines including tests): **read in full**
+  
+  ### Detailed findings
+  
+  1. **`TimestampFactory::new()` (line 31-38)**: Uses `getrandom` to initialize clock_id.
+     Silently ignores errors from `getrandom` (`let _ = ...`), defaulting clock_id to 0.
+     This is documented in the docstring. Minor concern: on platforms where getrandom
+     fails, all factories get clock_id 0, defeating the cross-process uniqueness goal.
+     Not a security issue, but a behavioral note.
+  
+  2. **`TimestampFactory::now()` (line 48-54)**: Monotonicity logic:
+     `self.last_time = (system_time() & TIME_MASK).max(self.last_time + CLOCK_MASK + 1)`.
+     This ensures each call increments by at least `CLOCK_MASK + 1` (256 microseconds),
+     preserving the lower 8 clock_id bits. Correct for its stated purpose.
+  
+  3. **`Timestamp::now()` (line 83-85)**: Uses `DEFAULT_FACTORY.lock().unwrap()`.
+     The `unwrap()` here could panic if the mutex is poisoned (i.e., a previous holder
+     panicked). Minor concern for library code, but typical for this pattern.
+  
+  4. **`system_time()` (line 307-322)**: On native, uses `SystemTime::now()` with
+     `expect("time drift")` for `duration_since(UNIX_EPOCH)`. On wasm32, uses
+     `js_sys::Date::now()` converted from milliseconds to microseconds. Both are
+     straightforward.
+  
+  5. **`From<SystemTime> for Timestamp` (line 163-171)**: Casts `as_micros()` (u128) to
+     u64 with `as u64`. This silently truncates if the timestamp exceeds u64::MAX
+     microseconds (~584,942 years from epoch). Not a practical concern.
+  
+  6. **`TryFrom<String>` without base32 feature (line 297-303)**: Parses a string by
+     slicing `value[11..value.len() - 1]`. This will panic on strings shorter than 12
+     characters due to slice bounds. This is a minor robustness issue, though the error
+     case is somewhat expected when parsing invalid input without the base32 feature.
+  
+  7. **Arithmetic operations (lines 189-243)**: `Add<u64>` uses `checked_add` with
+     `unwrap_or(u64::MAX)` (saturating). `Sub<u64>` uses `saturating_sub`. Consistent
+     and safe.
+  
+  8. **Serde serialization (lines 247-267)**: Serializes as big-endian 8-byte array.
+     Fixed-size, no allocation concerns. Correct.
+  
+  9. **`include_str!("../README.md")` (line 1)**: Benign — includes the README as crate
+     documentation.
+  
+  10. **No conditional compilation surprises**: `#[cfg(target_arch = "wasm32")]` for
+      wasm-specific time, `#[cfg(feature = ...)]` for optional features. All transparent
+      and expected.
+  
+  ### Architecture summary
+  
+  Single-file crate with one core type (`Timestamp`, a newtype over `u64`), a factory
+  (`TimestampFactory`) that tracks last-generated time and a random clock_id for
+  monotonicity, and a global `DEFAULT_FACTORY` behind `Lazy<Mutex<...>>`. The lower 8 bits
+  of the u64 store the clock_id; the upper 56 bits store the microsecond timestamp. Various
+  `From`/`Into` conversions, arithmetic ops, and optional serde/base32/httpdate support.
+  Clean, focused design with no unnecessary complexity.
+  
+  ### Claims vs reality reconciliation
+  
+  - Strictly monotonic: verified — `now()` enforces `last_time + CLOCK_MASK + 1` minimum.
+  - Sortable encoding: verified — big-endian bytes, Crockford base32 with feature flag.
+  - No network access: verified — no network deps in core.
+  - No filesystem access: verified — no fs operations.
+  - No process spawning: verified.
+  - No env var reading: verified.
+  - No unsafe: verified.
+  
+  All capabilities match the stated purpose. No undisclosed capabilities found.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - Tests (lines 336-418): read but not deeply analyzed beyond confirming they exercise
+    the main code paths (monotonicity, string round-trip, serde, httpdate).
+  - `.github/` directory: not reviewed (CI configuration, not part of the library code).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+mpcgDhCDPeR7fU3_925WxOvpPMSEBdXC_CM7g83-atXqE27sJgiDB27Iwsl6OL-KQj5nDBdUEz5l1p5kWf6BBA
+----- END CREV PROOF -----
+
