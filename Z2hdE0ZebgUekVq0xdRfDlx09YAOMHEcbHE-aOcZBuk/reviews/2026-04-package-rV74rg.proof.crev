@@ -7299,3 +7299,108 @@ comment: |-
 rN6_IRwZ4ZVV2zXnk-xFutMcQlkwgLBMdIAt9pDhix0mSjHQJx1j-w4s2Ozd_ICSYZgY1tzSGGE6sIPB2dgiCA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: quoted-string-parser
+  version: 0.1.0
+  digest: K9FvB-CzbhpsPkq_OyXQlmyxM1BS2LwQwKP0FlUn_Iw
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: quoted-string-parser 0.1.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/quoted-string-parser-0.1.0
+  - Upstream repository: https://github.com/sancane/quoted-string-parser
+  - Upstream commit verified: 895f0fb46d4b7499e0d4d8964b5bb7219f5ac4a4
+  - Upstream tag for version: none (repo has no tags)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records git sha `895f0fb46d4b7499e0d4d8964b5bb7219f5ac4a4`. The upstream repo was cloned and checked out at that commit. A recursive diff between the crate source and the upstream checkout shows no differences beyond the expected files (`.cargo-ok`, `.cargo_vcs_info.json`, and the crates.io-generated `Cargo.toml` wrapper). The `Cargo.toml.orig` in the crate matches the upstream `Cargo.toml` exactly.
+  
+  The upstream repo has no git tags, so no version tag verification was possible. The commit message is "QuotedString parser for SIP grammar" and it is the only commit in the repo.
+  
+  ## Code review findings
+  
+  Thoroughness: medium -- all files read end-to-end, all logic inspected.
+  
+  ### Files read
+  
+  - `src/lib.rs` (36 lines) - Read in full
+  - `src/parser.rs` (181 lines) - Read in full
+  - `src/quoted_string.pest` (41 lines) - Read in full
+  - `Cargo.toml.orig` (19 lines) - Read in full
+  - `README.md` (70 lines) - Read in full
+  
+  ### Checks
+  
+  - build.rs: Not present. Good.
+  - unsafe blocks: None found in any `.rs` file.
+  - proc-macro: Uses `pest_derive` proc macro via `#[derive(Parser)]` to generate parser from the `.pest` grammar file. This is standard pest usage and the generated code does not contain unsafe.
+  - FFI: None.
+  - Network access: None.
+  - File system access: None.
+  - Environment variable access: None.
+  - Process spawning: None.
+  - Obfuscated strings: None. All Unicode escapes correspond to specific ASCII/UTF-8 byte ranges as documented in the RFC.
+  - Dependencies: `pest` 2.0 and `pest_derive` 2.0. Both are well-known, widely-used parser generator crates.
+  
+  ### Architecture summary
+  
+  This is a very small, focused crate that provides a PEG parser (via pest) for the `quoted-string` grammar defined in RFC 3261 (SIP). The crate consists of:
+  
+  1. `quoted_string.pest` -- A pest grammar file defining rules for `quoted_string`, `quoted_text`, `qdtext`, `quoted_pair`, whitespace handling (LWS/SWS), and UTF-8 non-ASCII sequences per RFC 3261.
+  
+  2. `parser.rs` -- Defines `QuotedStringParser` (a unit struct with `#[derive(Parser)]`) and a convenience `validate()` method that returns bool. Also defines `QuotedStringParseLevel` enum with two variants: `QuotedString` (full grammar with quotes) and `QuotedText` (inner content only). Contains comprehensive unit tests.
+  
+  3. `lib.rs` -- Re-exports the parser and parse level enum. Has `#![deny(missing_docs)]`.
+  
+  ### Grammar correctness
+  
+  The pest grammar closely follows the ABNF from RFC 3261 Section 25.1. The UTF-8 non-ASCII rules match the RFC's byte ranges. The `lws` rule correctly handles optional `[*WSP CRLF] 1*WSP` pattern. The `quoted_pair` rule correctly excludes `\x0A` and `\x0D` (LF and CR).
+  
+  One minor note: The RFC's UTF-8 encoding rules include 5-byte and 6-byte sequences (`\xF8-\xFB` and `\xFC-\xFD` ranges), which are not valid UTF-8 per the modern standard (RFC 3629 limits UTF-8 to 4 bytes). However, RFC 3261 explicitly defines these ranges, and since Rust strings are valid UTF-8, these branches would never actually match in practice. This is not a security concern -- it simply means those grammar branches are dead code.
+  
+  ### Claims vs reality
+  
+  - Claim: "Quoted string parser for grammar defined in RFC3261" -- Accurate.
+  - Claim: MIT/Apache-2.0 dual license -- No LICENSE files are included in the published crate, but this is a common omission for small crates. The license field in Cargo.toml is set.
+  - The crate does exactly what it says: validates strings against the quoted-string grammar.
+  
+  ### Security assessment
+  
+  No concerns. The crate is pure parsing logic with no I/O, no unsafe code, no dynamic code generation, and no access to system resources. The pest parser is well-tested and widely used. The attack surface is essentially zero beyond what pest itself provides. Malformed input will simply return `false` from `validate()` or an `Err` from `parse()`.
+  
+  ## Cross-check against existing reviews
+  
+  No existing cargo-crev reviews found for this crate.
+  
+  ## Open questions / things skipped
+  
+  - Did not audit the `pest` / `pest_derive` dependencies themselves (out of scope).
+  - No LICENSE-MIT or LICENSE-APACHE files in the published crate (minor packaging issue, not a concern for review).
+  - No version tag in upstream git repo (single-commit repo).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+8UjrF5tqQ-mwduXrSPpjtKQ1LsciMIQlC9FJpdTCt5wHviv-H8LcACUktA68-gBzvQChL9EPfHXrRZP6g-6aBA
+----- END CREV PROOF -----
+
