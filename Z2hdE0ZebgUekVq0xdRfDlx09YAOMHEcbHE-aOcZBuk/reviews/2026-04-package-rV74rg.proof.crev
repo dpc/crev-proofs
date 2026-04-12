@@ -2776,3 +2776,114 @@ comment: |-
 pR2n46tlhqMky3ZY6kOlh3PULbKtBtLId_6NAzwEPdQD9465XgMoG0i5tF3HenDvedbJ58htSFk7a4pzKtq5Ag
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T06:10:25+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: aleph-bft-types
+  version: 0.13.0
+  digest: OmPN9LC9WuFGk-rHQvk_namGJBKQSPv_76bBXNCBj38
+review:
+  thoroughness: medium
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: aleph-bft-types 0.13.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aleph-bft-types-0.13.0
+  - Upstream repository: https://github.com/Cardinal-Cryptography/AlephBFT
+  - Upstream commit verified: f736f9f6012cfc6b9d47071eff0249dd4cc37105
+  - Upstream tag for version: n/a (commit is "Bump rmc version (#438)", no version-specific tag found for types-0.13.0)
+  - path_in_vcs: types
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/Cardinal-Cryptography/AlephBFT at commit
+  `f736f9f6012cfc6b9d47071eff0249dd4cc37105` (path `types/` in monorepo). No version-specific
+  tag was found — tried `v0.13.0`, `0.13.0`, `aleph-bft-types-v0.13.0`,
+  `aleph-bft-types-0.13.0`; the repo only has a `codec-3.0` tag. However, the sha from
+  `.cargo_vcs_info.json` exists in the repo and was verified directly.
+  
+  `diff -r --brief` between the crates.io source and the upstream `types/` directory (excluding
+  expected-to-differ files) shows **zero differences**. `Cargo.toml.orig` is bit-for-bit
+  identical to the upstream `Cargo.toml`.
+  
+  ## Code review findings
+  
+  - **Thoroughness level: medium** — Crate is 59 Rust LoC across 4 files; small enough to read every line carefully.
+  
+  ### Claims baseline
+  
+  The crate claims to provide "Traits that need to be implemented by the user of the aleph-bft
+  package." It is a pure trait-definition crate with no runtime behavior of its own beyond
+  re-exports from `aleph-bft-crypto`. It should have no I/O, no unsafe, no network calls, no
+  filesystem access, and no build scripts.
+  
+  ### Dependencies
+  
+  - `aleph-bft-crypto` (version 0.9): justified — re-exports crypto types (NodeIndex, Keychain, etc.)
+  - `async-trait` (version 0.1): justified — used for `DataProvider` and `Network` async trait definitions
+  - `codec` (parity-scale-codec 3.0, derive feature): justified — `Codec` bound on `Data` trait and `Derive` on `Recipient` enum
+  - `futures` (version 0.3): justified — `Future` type used in `TaskHandle` definition
+  
+  No unexpected dependencies. No dev-dependencies. No build-dependencies.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** — **read in full**. Re-exports from `aleph_bft_crypto`, declares three submodules, defines `Data` blanket-impl trait (Eq + Clone + Send + Sync + Debug + StdHash + Codec + 'static), `Hasher` trait with associated `Hash` type, and two type aliases (`SessionId = u64`, `Round = u16`). Clean, minimal, no surprises.
+  - **src/dataio.rs** — **read in full**. Defines `DataProvider<Data>` async trait with `get_data()` and `FinalizationHandler<Data>` trait with `data_finalized()` and `unit_finalized()` (with default impl). Clean, well-documented. No issues.
+  - **src/network.rs** — **read in full**. Defines `Recipient` enum (Everyone, Node(NodeIndex)) with Codec derive, and `Network<D>` async trait with `send()` and `next_event()`. Clean, well-documented. No issues.
+  - **src/tasks.rs** — **read in full**. Defines `TaskHandle` type alias (Pin<Box<dyn Future<...>>>) and `SpawnHandle` trait with `spawn()` and `spawn_essential()`. Clean, no issues.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **Unsafe blocks**: Zero. Confirmed via grep. Positive.
+  - **FFI surface**: None. Positive.
+  - **Red-flag patterns**: Scanned for Command, std::env, reqwest, include_bytes, include_str, transmute, from_raw, extern "C", base64 literals, obfuscated strings — all clean.
+  
+  ### Architecture summary
+  
+  This is a pure interface crate. It defines the trait boundaries that users of AlephBFT must
+  implement: data provision (DataProvider), finalization handling (FinalizationHandler), network
+  transport (Network + Recipient), and task spawning (SpawnHandle). It also re-exports all
+  crypto types from `aleph-bft-crypto` for convenience. The crate contains zero runtime logic
+  beyond a trivial default method in `FinalizationHandler::unit_finalized` that delegates to
+  `data_finalized`.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate does exactly what it claims — defines traits for AlephBFT users. It exercises no
+  capabilities beyond what its stated purpose requires. No I/O, no network, no filesystem, no
+  env vars, no unsafe, no FFI, no process spawning.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. All 4 source files read in full. The only caveat is the lack of a
+  version-specific git tag, but the `.cargo_vcs_info.json` sha was verified directly against
+  the upstream repo and all files match.
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+vM5ZZkXrQUECr6LuqxYk7kodLCWrrEuqZ6JI3BetHP-uMAqStzZ_HNfDbnu4OK_qs8c7uTjdmmOO3qWs6KuBDQ
+----- END CREV PROOF -----
+
