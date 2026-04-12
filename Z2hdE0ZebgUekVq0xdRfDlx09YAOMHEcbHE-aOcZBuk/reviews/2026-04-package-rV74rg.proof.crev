@@ -7108,3 +7108,93 @@ comment: |-
 rVkjygwwGP4WwnkXDwEH0HpiN8-rM5R6VKXnwrC8pm-BZQqnbDrl7ry3Y9JyNl1-IcywBCNr_pXqf2N47dXnAQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T16:12:13+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: tor-relay-crypto
+  version: 0.38.0
+  digest: sVuB6mNNOgtEwQG_fKKYHFFe0y1Cp1F38tOgdQKN0GQ
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: tor-relay-crypto 0.38.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tor-relay-crypto-0.38.0
+  - Upstream repository: https://gitlab.torproject.org/tpo/core/arti.git/
+  - Upstream commit verified: n/a (DNS resolution for gitlab.torproject.org failed in this environment)
+  - Upstream tag for version: n/a
+  - Verification outcome: partial (`.cargo_vcs_info.json` present with sha1 `ba421ece1acb47e5c554c2bfa043cc9156451bab`, path_in_vcs `crates/tor-relay-crypto`, but upstream repo was unreachable for diff comparison)
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` is present and records git sha `ba421ece1acb47e5c554c2bfa043cc9156451bab` with `path_in_vcs: "crates/tor-relay-crypto"`. The upstream repository URL in `Cargo.toml.orig` is `https://gitlab.torproject.org/tpo/core/arti.git/`. DNS resolution for `gitlab.torproject.org` failed (`SERVFAIL`) in this environment, so the upstream clone could not be performed and a source tree diff was not possible. This is an environment limitation, not a crate issue. The crate is published by the Tor Project (`authors = ["The Tor Project, Inc."]`), a well-known and reputable organization.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — the crate has only 281 Rust LoC across 3 source files, small enough to read carefully end-to-end.
+  
+  **Claims baseline:** The crate claims to provide "cryptography types and helpers for a Tor relay" — specifically wrapper types for relay identity/signing/link keys and certificate generation/validation functions. It is part of the Arti project (Tor in Rust).
+  
+  ### File map
+  
+  - `src/lib.rs` (52 lines): **read in full** — module declarations, lint configuration, and re-exports. Standard Arti boilerplate lint list. Re-exports `certs::{RelayLinkSigningKeyCert, RelaySigningKeyCert, gen_link_cert, gen_signing_cert}`. The `include_str!("../README.md")` is standard rustdoc practice.
+  - `src/certs.rs` (174 lines): **read in full** — defines `RelaySigningKeyCert` and `RelayLinkSigningKeyCert` as newtype wrappers around `EncodedEd25519Cert`. Implements `gen_signing_cert` and `gen_link_cert` for generating Ed25519 certificates with appropriate cert types. Implements `ToEncodableCert` trait for both cert types. Contains a private `validate_ed25519_cert` function that checks signature, time validity, subject key, and cert type. All error handling uses `Result` properly. No panics, no unwrap.
+  - `src/pk.rs` (189 lines, 134 non-test): **read in full** — uses `define_ed25519_keypair!` and `define_rsa_keypair!` macros from `tor-key-forge` to declare `RelayIdentity`, `RelaySigning`, and `RelayLinkSigning` keypair types. Defines key specifier structs using `derive_deftly(KeySpecifier)` for keystore management. A `Timestamp` newtype wraps `Iso8601TimeSlug` for denotator use. `KeySpecifierComponent` impl for `Timestamp` is straightforward slug conversion. Test module validates key specifier paths.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: All dependencies are tor-ecosystem crates (`tor-cert`, `tor-checkable`, `tor-error`, `tor-key-forge`, `tor-keymgr`, `tor-llcrypto`, `tor-persist`) plus `derive-deftly`, `derive_more`, and `humantime`. All are consistent with the crate's stated purpose (cryptographic key management for Tor relays). No surprising or out-of-scope dependencies. `humantime` is used transitively through the `Iso8601TimeSlug` path handling. Path dependencies in `Cargo.toml.orig` are expected for workspace crates — they are resolved to version specs in the published `Cargo.toml`.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **Unsafe blocks**: Zero. Positive.
+  - **FFI surface**: None. Positive.
+  
+  ### Red-flag scan
+  
+  - No `unsafe`, `transmute`, `from_raw`, raw pointers.
+  - No `Command::new`, `std::env::var`, network calls, filesystem operations (beyond what the tor-persist/tor-keymgr abstractions handle).
+  - No `include_bytes!`, no suspicious string constants, no obfuscated code.
+  - No `unwrap` or `expect` in non-test code (the crate even has `#![deny(clippy::unwrap_used)]`).
+  - The `#[cfg(test)]` block is cleanly separated and only contains key specifier path tests.
+  
+  ### Architecture summary
+  
+  This is a thin wrapper crate providing type-safe key and certificate types for Tor relay operations. It delegates all cryptographic operations to `tor-llcrypto` and `tor-cert`, and key storage to `tor-keymgr`. The crate defines three key hierarchy levels (long-term identity, medium-term signing, short-term link) with associated certificate types and generation functions. Certificate validation checks signature, time bounds, subject key identity, and cert type. The code is clean, well-documented, and follows the Arti project's conventions (extensive clippy lints, structured key specifiers via derive macros).
+  
+  ### Claims vs reality reconciliation
+  
+  - The crate claims to provide "cryptography types and helpers for a Tor relay" — confirmed. All code is key type definitions, key specifiers, and certificate generation/validation.
+  - No capabilities exercised beyond what's claimed. No filesystem I/O, no network, no process spawning, no env vars.
+  - The `humantime` dependency is not directly used in the reviewed source files; it likely comes in through the slug/timestamp handling path. This is benign.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version (`cargo crev repo query review tor-relay-crypto` returned empty).
+  
+  ## Open questions / things skipped
+  
+  - External verification incomplete due to DNS failure for `gitlab.torproject.org`. A full review should re-verify once the upstream is reachable.
+  - The macro-generated code from `define_ed25519_keypair!`, `define_rsa_keypair!`, and `derive_deftly(KeySpecifier)` was not expanded and inspected. These are from the Tor project's own crates.
+  - `humantime` dependency usage path was not fully traced.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+0GBfc_2zV3NGqUIHKDKEKse8wlvMci9YFrMNh2LFIPKNaJI6GPUYBuuG_1B1Kg3wUfVXJbuOHz9xaepc8ReMBw
+----- END CREV PROOF -----
+
