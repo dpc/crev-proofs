@@ -8864,3 +8864,138 @@ comment: |-
 xidxkc3f9Rgn_O8Jg5iv-OInGUbvUkmVYW9B7fsdruZw3YdyXhi3KUwCCZrbeiWm5iw7OpSTJfq8fMEbc-nDCA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T19:11:40+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: bip21
+  version: 0.5.0
+  digest: hvfDhBxNBMNAOwWHNsPKV07gWb7QaDmIjtQjM1Pfr5U
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: bip21 0.5.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bip21-0.5.0
+  - Upstream repository: https://github.com/Kixunil/bip21
+  - Upstream commit verified: eae72026cc5838bb169949641948b8c1cef99cbe
+  - Upstream tag for version: n/a (no tags in repo; commit message reads "Release version 0.5.0")
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to be a "Rust-idiomatic, compliant, flexible and performant BIP21" URI
+  parser/serializer. It is `no_std` (requires `alloc`), uses zero-copy deserialization, and
+  supports extensible extra parameters with `req-` rejection as mandated by BIP21.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/Kixunil/bip21 at commit
+  `eae72026cc5838bb169949641948b8c1cef99cbe`. The commit message is "Release version 0.5.0".
+  No version tags exist in the repository. `Cargo.toml.orig` is bit-for-bit identical to
+  upstream `Cargo.toml`. All other files (src/lib.rs, src/de.rs, src/ser.rs, README.md,
+  rustfmt.toml) are bit-for-bit identical.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — crate is 620 Rust LoC across 3 files, small enough for
+  careful end-to-end reading.
+  
+  ### File map
+  
+  - `src/lib.rs` (431 lines) — **read in full**
+  - `src/de.rs` (349 lines) — **read in full**
+  - `src/ser.rs` (143 lines) — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: absent. Positive.
+  - **proc-macro**: not a proc-macro crate. Positive.
+  - **unsafe**: zero occurrences across all source files (`rg 'unsafe'` returns nothing). Positive.
+  - **FFI surface**: none. Positive.
+  - **Dependencies**: `bitcoin` (expected for BIP21), `percent-encoding-rfc3986` (expected for
+    URI percent-encoding), `either` (optional, for non-compliant bytes feature). All deps are
+    justified by the crate's purpose.
+  
+  ### Red-flag scan
+  
+  No hits for: `unsafe`, `transmute`, `from_raw`, `Command`, `std::env`, `reqwest`, `ureq`,
+  `hyper`, `include_bytes!`, `include_str!`, base64 blobs, obfuscated strings, or raw pointer
+  arithmetic.
+  
+  ### Architectural summary
+  
+  The crate has a clean three-file structure:
+  
+  1. **lib.rs** — defines the core `Uri` type (generic over network validation and extras),
+     `Param` (a lazy percent-decoded string parameter using `Cow`), `NoExtras`/`EmptyState`
+     defaults, and conversion impls between `Param` and `String`/`Vec<u8>`/`Cow`. Tests at the
+     bottom cover BIP21 test vectors (address-only, with label, with amount+label, with
+     amount+label+message, required-unknown-parameter rejection, optional-unknown-parameter
+     acceptance).
+  
+  2. **de.rs** — deserialization logic. `deserialize_raw` parses the `bitcoin:` scheme,
+     splits address from params at `?`, iterates params splitting on `&` and `=`, handles
+     `amount`/`label`/`message` as known fields, delegates extras to a user-provided
+     `DeserializationState` trait impl. Unknown `req-` prefixed params correctly trigger an
+     error per BIP21. Implements `FromStr`, `TryFrom<&str>`, `TryFrom<String>`,
+     `TryFrom<Cow<str>>` for `Uri`. Also provides `require_network` and `assume_checked` for
+     address network validation.
+  
+  3. **ser.rs** — serialization via `Display`. Uses `EqSignChecker` wrapper to panic if a key
+     contains `=` (prevents malformed URIs). `WriterEncoder`/`DisplayEncoder` handle
+     percent-encoding on write. Displays `bitcoin:<address>` then optional params in order:
+     amount, label, message, extras.
+  
+  ### Claims vs. reality reconciliation
+  
+  - **BIP21 compliant parsing**: verified — scheme check is case-insensitive, address is
+    mandatory, `req-` unknown params are rejected, known params (amount, label, message)
+    parsed correctly.
+  - **Zero-copy deserialization**: verified — `TryFrom<&'a str>` borrows from the input string
+    via `PercentDecode` iterators.
+  - **no_std**: verified — `#![no_std]` declared, only `alloc` imported.
+  - **Extensible extras**: verified — generic `Extras` parameter with `DeserializeParams`/
+    `SerializeParams` traits.
+  - No network access, filesystem access, process spawning, or env var reading anywhere in the
+    code.
+  
+  ### Minor observations
+  
+  - `EqSignChecker` in ser.rs (line 35-37) panics if a key contains `=`. This is documented
+    behavior (warning in `SerializeParams::Key` doc), not a bug, but users who provide
+    user-controlled keys could trigger a panic. Since the trait is implemented by library
+    consumers (not on untrusted input), this is acceptable.
+  - The `ParamInner` enum is private, preventing external construction of invalid states. Good
+    encapsulation.
+  - Typo in doc comments: "paramter" instead of "parameter" (lib.rs lines 282, 289). Cosmetic only.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. All three source files read in full. Test module in lib.rs also read.
+  The `rustfmt.toml` file was not inspected (formatting config only, no code).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+y8MbjYMpxO2YAzGJqUDKdBZJvy-Ey-rttG4ThTJnbNMUhBETF0ExNzpnZVWYR-HJZ6Ju9iGRmN8xYCEvnnzYBQ
+----- END CREV PROOF -----
+
