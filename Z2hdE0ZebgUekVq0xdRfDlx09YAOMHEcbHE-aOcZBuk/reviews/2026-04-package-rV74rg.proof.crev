@@ -6691,3 +6691,128 @@ comment: |-
 0ngwbkId5Khv2UpMukiLZEShMVs-ONYih63rWOa7QrRAlHzW0MhaVcS85qjDN2220mezL43PYnp8ZQVkpiwfAg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T15:57:14+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: derive-deftly-macros
+  version: 0.14.6
+  digest: RSCzQ68s1foVpn17NlSY9H7n0CGefHlp2n8ukTdOTlE
+review:
+  thoroughness: low
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: derive-deftly-macros 0.14.6
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive-deftly-macros-0.14.6
+  - Upstream repository: https://gitlab.torproject.org/Diziet/rust-derive-deftly
+  - Upstream commit verified: n/a (could not resolve gitlab.torproject.org — no network access)
+  - Upstream tag for version: n/a
+  - Verification outcome: partial (network unavailable)
+  
+  ## Claims baseline
+  
+  derive-deftly-macros is the proc-macro implementation crate for derive-deftly, a Rust derive macro framework that allows users to define reusable templates that expand over struct/enum definitions. It claims to be a pure proc-macro crate with no I/O, no network, and no filesystem access beyond what the proc-macro infrastructure provides. Dependencies are all macro-ecosystem crates (syn, quote, proc-macro2, etc.) plus indexmap, itertools, strum, void, and optionally sha3 and heck.
+  
+  ## External verification
+  
+  Could not clone the upstream repository at `https://gitlab.torproject.org/Diziet/rust-derive-deftly` due to DNS resolution failure (no network access in this environment). The `.cargo_vcs_info.json` records git sha `572d89b97e7b6acfc067b23de1d17142d90c33d3` with `path_in_vcs: "macros"`. The `Cargo.toml.orig` manifest lists the repository URL consistently. External verification is **partial** — the crate source could not be diffed against upstream. No evidence of tampering was found in the code itself.
+  
+  ## Code review findings
+  
+  ### Thoroughness level: low
+  
+  Justification: ~10,375 lines of Rust across 27 files. This is at the boundary between low and medium. Given the crate's nature as a proc-macro (compile-time code execution), I performed a focused review with random sampling and full coverage of all non-negotiable checks.
+  
+  ### Non-negotiable checks
+  
+  **build.rs**: Read in full (24 lines). Entirely benign — emits two `cargo:rustc-check-cfg` lines to declare custom cfg flags (`derive_deftly_dprint` and `feature = "bizarre"`). No network calls, no file I/O beyond stdout to cargo, no shell invocations, no env var reads, no writes outside OUT_DIR. **Clean.**
+  
+  **proc-macro entry points** (`macros.rs`): Read in full. Five `#[proc_macro]` / `#[proc_macro_derive]` functions, all following the same pattern: delegate to an inner function via `wrap_macro_func`, which converts between `proc_macro::TokenStream` and `proc_macro2::TokenStream` and handles errors via `into_compile_error()`. No suspicious behavior. **Clean.**
+  
+  **unsafe blocks**: Searched with `rg -n 'unsafe'` — zero results. **No unsafe code.**
+  
+  **FFI surface**: No `extern "C"`, no bindgen, no linked C libraries. **None.**
+  
+  **Dependencies (Cargo.toml)**:
+  - `indexmap`, `itertools`, `proc-macro-crate`, `proc-macro2`, `quote`, `syn`, `strum`, `void` — all standard/expected for a complex proc-macro crate.
+  - `sha3` (optional, gated on `expect` feature) — used for output syntax checking, reasonable.
+  - `heck` (optional, gated on `case` feature) — case conversion for identifiers, reasonable.
+  - No network, HTTP, or filesystem-access crates. All deps are justified by the crate's purpose.
+  
+  ### Red-flag scan results
+  
+  - `std::env::var_os` in `utils.rs:38`: Inside `#[cfg(derive_deftly_dprint)]` block only. Reads `DERIVE_DEFTLY_DPRINT` env var to control debug printing. This cfg is not enabled by default and must be explicitly opted into. **Not a concern.**
+  - `include_str!` in `macros.rs:2,45,48`: Used for `#![doc=include_str!("README.md")]` and similar doc includes. Points at local files (README.md, HACKING.md, NOTES.md). **Benign.**
+  - `eprint!`/`eprintln!` in `dbg_allkw.rs`, `expand.rs`, `engine.rs`, `utils.rs`: All gated behind debug/dbg options (`derive_deftly_dprint` cfg or explicit `dbg` template keyword). **Benign — debug output only.**
+  
+  ### Per-file coverage
+  
+  - **build.rs** (24 lines): read in full
+  - **macros.rs** (517 lines): read in full
+  - **prelude.rs** (65 lines): read in full
+  - **define.rs** (261 lines): read in full
+  - **engine.rs** (417 lines): read in full
+  - **compat_syn_2.rs** (49 lines): read in full
+  - **boolean.rs** (209 lines): read in full
+  - **expand.rs** (754 lines): read in full
+  - **repeat.rs** (600 lines): read in full
+  - **dbg_allkw.rs** (260 lines): read in full
+  - **check.rs** (211 lines): read partially (first 50 lines)
+  - **meta.rs** (1771 lines): read partially (first 50 lines)
+  - **accum.rs** (133 lines): read partially (first 50 lines)
+  - **adhoc.rs** (79 lines): read in full
+  - **derive.rs** (295 lines): read in full
+  - **semver.rs** (95 lines): read in full
+  - **utils.rs** (628 lines): not read (except env::var_os area via grep)
+  - **framework.rs** (616 lines): not read
+  - **syntax.rs** (1309 lines): not read
+  - **paste.rs** (960 lines): not read
+  - **options.rs** (374 lines): not read
+  - **approx_equal.rs** (353 lines): not read
+  - **adviseable.rs** (194 lines): not read
+  - **beta.rs** (105 lines): not read
+  - **beta_disabled.rs** (27 lines): not read
+  - **compat_syn_1.rs** (47 lines): not read
+  - **compat_syn_common.rs** (22 lines): not read
+  
+  ### Architectural summary
+  
+  The crate is structured as a proc-macro library with five entry points (derive_deftly_engine, derive_deftly_adhoc, define_derive_deftly, Deftly derive, template_export_semver_check). Templates are parsed into an AST (syntax.rs), then expanded against a driver data structure (expand.rs) using a Context that tracks the current position within types/variants/fields (repeat.rs, framework.rs). The code is well-organized with clear separation of concerns. Boolean conditions, paste operations, and meta-attribute handling are each in their own modules. A recursion limit (100) prevents infinite expansion loops.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims to be a pure proc-macro: **Confirmed.** No filesystem, network, process spawning, or other I/O.
+  - The only env var access is behind a debug cfg that is off by default: **Confirmed.**
+  - All dependencies are justified by the crate's stated purpose: **Confirmed.**
+  - No capabilities exercised beyond what proc-macros inherently require (token stream manipulation): **Confirmed.**
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - Could not perform external verification against upstream git (network unavailable).
+  - Did not read syntax.rs (1309 lines — the template parser), paste.rs (960 lines), utils.rs (628 lines), framework.rs (616 lines), options.rs (374 lines), approx_equal.rs (353 lines), adviseable.rs (194 lines), or several smaller files. These are internal implementation files for template parsing and expansion. Given the red-flag scan found nothing suspicious in these files, the risk of missing something security-relevant is low but nonzero.
+  - The `expect` feature uses sha3 for output hashing — only the entry point was reviewed, not the full implementation.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: low
+  - understanding: medium
+----- SIGN CREV PROOF -----
+_EgnOYBmihU9qT7ll9HHmpHfKWkFsLyIuMhhogmWHAQk8_tDG6ZEzRGhsN4Lxg3PKs2mQosDja7cyLIrzRAUAQ
+----- END CREV PROOF -----
+
