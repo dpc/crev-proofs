@@ -5100,3 +5100,52 @@ comment: |-
 JfasmWrlpYLzkRejTroWgzqWIcxgt5040tO-etLDCPkOCjCnMW3BiiKCjeK7QPFWdapGsLyaqpoQfPIWpL1zDA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T07:55:36.727449757+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: portmapper
+  version: 0.6.1
+  digest: 3anYZEypm3w6MKTlnpQt3Wnhfd7wM-L6EkMHpl7kZhc
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  Port mapping utility library providing UPnP, PCP (RFC 6887), and NAT-PMP (RFC 6886) protocol support.
+  Maintains port mappings across network changes. Part of the iroh project by n0-computer.
+  
+  Source Verification:
+  - Upstream repo: https://github.com/n0-computer/net-tools
+  - VCS commit: f15bfcac36f7b84ba2c64fbb661d75c8943b4b30 (path_in_vcs: portmapper)
+  - Crate source matches upstream checkout exactly (excluding expected cargo-added files).
+  
+  Code Review (~2973 LoC, 15 .rs files, all read in full):
+  - No build.rs, no proc-macro.
+  - 1 unsafe block in test code only: NonZeroU16::new_unchecked(9586) with constant literal, trivially safe.
+  - No transmute, from_raw, Command::new, std::env::var, include_bytes!, or obfuscated strings.
+  - No HTTP client libraries (reqwest/ureq/hyper/curl) used directly.
+  - Network I/O limited to UDP sockets (netwatch::UdpSocket) for PCP/NAT-PMP and igd-next for UPnP.
+  
+  Architecture: Clean async service with Client/Service pattern over mpsc channel. Protocol
+  implementations well-isolated. PCP and NAT-PMP wire protocol encoding/decoding implemented
+  manually with good test coverage. UPnP delegates to igd-next. Proper lifecycle management
+  with renewal at half-lifetime and expiry.
+  
+  Dependencies appropriate for stated purpose. Minor note: base64 listed but unused in source;
+  hyper-util and tower-layer pinned only to fix minimal version builds.
+  
+  No major concerns. Well-structured, proper error handling, no surprising behavior.
+----- SIGN CREV PROOF -----
+ipghql8OkcxNOVD8Snk8lCOcdiR1UZecqLTYKdc9c-Q76O_jq9yMQIdtzgqkd0OWC97MLisuNksFFk_22Me_AQ
+----- END CREV PROOF -----
+
