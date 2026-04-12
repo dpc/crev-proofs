@@ -4696,3 +4696,138 @@ comment: |-
 PlBkRyU0HrIJoTCy5eFLukw9ZuUyuMQZkvRy00kqthjHljA9gaY_1O52TQ3due9JF29cHU5ZGjRr4ep6lYZMBA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T07:42:21+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: unty
+  version: 0.0.4
+  digest: 6v8Oo_bQg58VVKEy7TUdopu7iwDsECwWFmnESuGM-cc
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: unty 0.0.4
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unty-0.0.4
+  - Upstream repository: https://github.com/bincode-org/unty
+  - Upstream commit verified: 5455639ae05f42202a270f16bb4d79f6791d9b70
+  - Upstream tag for version: v0.0.4
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/bincode-org/unty at commit
+  `5455639ae05f42202a270f16bb4d79f6791d9b70` tagged `v0.0.4`. The `.cargo_vcs_info.json`
+  sha matches the tag commit exactly. All file diffs are limited to CRLF vs LF line
+  endings (crates.io tarball uses CRLF, upstream git uses LF) — content is byte-identical
+  after line ending normalization. `Cargo.toml.orig` matches upstream `Cargo.toml` exactly
+  (after CRLF normalization). No unexpected files on either side.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — crate is 104 Rust LoC in a single file, well within
+  the threshold for a careful end-to-end read.
+  
+  ### Claims baseline
+  
+  The crate claims to provide two functions: `type_equal` (check if two types are the
+  same) and `unty` (downcast a generic type into a concrete type). It is `#![no_std]`,
+  has zero dependencies, and documents a known unsoundness with lifetime-bearing types.
+  
+  ### File map
+  
+  - `src/lib.rs` (125 lines) — **read in full**
+  - `Cargo.toml.orig` — **read in full**
+  - `README.md` — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: none present (positive)
+  - **proc-macro**: not a proc-macro crate (positive)
+  - **Dependencies**: zero external dependencies; only uses `core::{any::TypeId, marker::PhantomData, mem}` (positive)
+  - **FFI surface**: none (positive)
+  - **unsafe blocks**: 2 found (see analysis below)
+  
+  ### Unsafe analysis
+  
+  1. **`unty()` function (line 45-52)**: Uses `mem::ManuallyDrop::new(x)` followed by
+     `mem::transmute_copy::<Src, Target>(&x)`. This is guarded by `type_equal::<Src, Target>()`
+     which checks `TypeId` equality. When types are equal, `transmute_copy` is valid because
+     the types have the same layout. `ManuallyDrop` prevents double-drop (verified by the
+     `test_double_drop` test). The function is correctly marked `unsafe` because `type_equal`
+     can give false positives with lifetime-bearing types (documented). **Soundness argument:
+     when `Src` and `Target` are truly the same type (no lifetime differences), the
+     `transmute_copy` is valid and `ManuallyDrop` prevents double-drop. The documented
+     unsoundness with lifetimes is correctly surfaced to callers via `unsafe`.**
+  
+  2. **`non_static_type_id()` function (line 101-103)**: Transmutes
+     `&dyn NonStaticAny` to `&(dyn NonStaticAny + 'static)` to call `get_type_id()` which
+     requires `Self: 'static`. This is the core trick (attributed to dtolnay, see
+     https://github.com/bincode-org/bincode/issues/665#issue-1903241159) that allows getting
+     a `TypeId` for non-`'static` types. The transmute erases lifetime information on the
+     trait object reference, which is valid for `PhantomData<T>` since `PhantomData` is a ZST
+     and the reference is immediately used and discarded. **The transmute is sound for the
+     purpose of obtaining a `TypeId`, but `TypeId` equality does not distinguish lifetime
+     parameters, which is the documented limitation.**
+  
+  ### Red-flag scan
+  
+  - `unsafe`: 2 occurrences — both analyzed above, both justified
+  - `transmute`/`transmute_copy`: both in the 2 unsafe blocks above — core mechanism of the crate
+  - No `std::process::Command`, `std::env::var`, `reqwest`, `include_bytes!`, base64 literals,
+    obfuscated strings, or any other red-flag patterns found
+  - No `#[cfg(...)]` conditional compilation
+  - No `Drop` impls (except in the test)
+  
+  ### Architectural summary
+  
+  The crate provides a single-file implementation of type-equality checking and type
+  downcasting for generic contexts. It uses a clever trick (attributed to dtolnay) to
+  obtain `TypeId` for non-`'static` types by transmuting a trait object reference to erase
+  its lifetime bound. The public API consists of two functions: `type_equal<Src, Target>()`
+  (safe) and `unty<Src, Target>(x)` (unsafe). The crate is `#![no_std]` with zero
+  dependencies, making it extremely minimal. The known limitation (false positives for
+  lifetime-differing types) is clearly documented.
+  
+  ### Reconciliation against claims
+  
+  - Claims: type equality check and generic-to-concrete downcast. **Verified: the code does
+    exactly this and nothing more.**
+  - No network, filesystem, process spawning, environment variable access, or any capability
+    beyond pure computation. **Verified.**
+  - `#![no_std]` claim: **Verified.**
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The `non_static_type_id` trick relies on `TypeId` not distinguishing lifetimes, which
+    is a property of the current Rust compiler but not formally guaranteed by the language
+    specification. A future Rust version could theoretically change `TypeId` behavior and
+    break this crate's assumptions. This is a known issue in the Rust ecosystem (not
+    specific to this crate).
+  - The `.github/workflows/rust.yml` CI file is present in both the tarball and upstream
+    (differs only in line endings). It's a standard Rust CI config and not concerning.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+Wa2WFrjCO6CKpqYGiur5GgBd53CgAXJeKBeY7mayS1vY4At_156hC1B4WbztKBRFnsvo9X3d7HLxyFYlHPaNAw
+----- END CREV PROOF -----
+
