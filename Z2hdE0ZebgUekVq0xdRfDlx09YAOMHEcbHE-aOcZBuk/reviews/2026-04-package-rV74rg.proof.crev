@@ -6526,3 +6526,68 @@ comment: |-
 h3DFKEmXnQX6gV9CLXBQhlLh6gofR1q82U6EhfGY5w40CbTGhLItsigalh10d8G-AO60ioCa2c94QvFpGhFODQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: impl-tools
+  version: 0.10.3
+  digest: 6uDpfwIFsY2Ng7FlNayORgbCXelRXk7KuTeTwaZo-7g
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  ## External Verification
+  
+  - Upstream repository: https://github.com/kas-gui/impl-tools
+  - VCS commit: df66d082ec1c627adec7b9fdde693fc268c87659
+  - Cargo.toml.orig matches upstream Cargo.toml exactly (no diff).
+  - Crate source matches upstream checkout. Only expected differences:
+    - `Cargo.toml.orig` present only in crate (expected cargo artifact)
+    - `lib/` directory present only in upstream (workspace member `impl-tools-lib`, not part of this crate's published source)
+  - No unexpected files or modifications detected.
+  
+  ## Code Review
+  
+  ### Files read
+  
+  | File | Status | Notes |
+  |------|--------|-------|
+  | Cargo.toml.orig | Read in full | Standard proc-macro crate manifest. Deps: syn, proc-macro-error2, impl-tools-lib (path dep). Build dep: autocfg. |
+  | build.rs | Read in full | Uses autocfg to detect rustc >= 1.65. Only calls `emit_rustc_version` and `rerun_path`. No network, no shelling out, no writes outside OUT_DIR. Safe. |
+  | src/lib.rs | Read in full | ~416 lines including docs. Defines 4 proc macros: `impl_default`, `autoimpl`, `impl_scope`, `impl_anon`. All delegate to `impl-tools-lib`. |
+  | README.md | Read in full | Documents the macros with examples. Matches actual code. |
+  
+  ### Security Assessment
+  
+  - No unsafe blocks anywhere in the crate source.
+  - No process spawning, network calls, env var reads (beyond autocfg in build.rs which is standard), include_bytes, or obfuscated strings.
+  - build.rs is minimal and safe: uses `autocfg` (well-known crate) solely to detect compiler version and set a cfg flag (`rustc_1_65`).
+  - Dependencies are appropriate for a proc-macro crate: syn (parsing), proc-macro-error2 (error reporting), impl-tools-lib (the actual macro logic), autocfg (build-time rustc version detection).
+  
+  ### Claims Verification
+  
+  The README claims this crate provides helper macros (`autoimpl`, `impl_default`, `impl_scope`, `impl_anon`). The code exports exactly these four proc macros, all delegating to `impl-tools-lib` for the actual logic. Claims match code.
+  
+  ## Cross-check Against Existing Reviews
+  
+  No existing cargo-crev reviews found for impl-tools.
+  
+  ## Open Questions / Things Skipped
+  
+  - The actual macro logic lives in `impl-tools-lib` (v0.11.1), which is a separate crate not reviewed here. This crate is essentially a thin proc-macro frontend.
+  - Dev dependencies (doc-comment, twox-hash) are only used in tests and not evaluated.
+----- SIGN CREV PROOF -----
+JvUVPDH16mMg39gg-v_SSjP03xsgEDJvRV4ojnmJxWu8gYO_iBFEIie7PA_NYw9Ekb5LdStXT5Fxd5-pEGBJAQ
+----- END CREV PROOF -----
+
