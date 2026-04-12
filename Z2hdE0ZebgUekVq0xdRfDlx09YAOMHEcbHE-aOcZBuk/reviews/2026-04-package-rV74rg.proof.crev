@@ -2398,3 +2398,86 @@ comment: |-
 -RXkan68n_vl0BnDKdygNfNegaXGcXF9lpiY7LVpsukI1fHPKK-DT0Iey8eUXKkbno_qMsK9kjwVPZrQp2cAAw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T05:48:14+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: hostname-validator
+  version: 1.1.1
+  digest: u6ExAB-mfXd_67LsXjT3KHCqWbVpTR-mDuXaRe53rRU
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: hostname-validator 1.1.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hostname-validator-1.1.1
+  - Upstream repository: https://github.com/pop-os/hostname-validator
+  - Upstream commit verified: bc1ff84f5e77c449bc07a36ec58a31344435c996
+  - Upstream tag for version: no tag for 1.1.1 (commit message reads "chore(release): 1.1.1"; nearest tag is `1.1.0`)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/pop-os/hostname-validator at commit
+  `bc1ff84f5e77c449bc07a36ec58a31344435c996`. No version tag exists for 1.1.1, but the
+  commit message is "chore(release): 1.1.1" and the Cargo.toml at that commit has
+  `version = "1.1.1"`. All files (src/lib.rs, LICENSE, README.md, Cargo.toml) are
+  bit-for-bit identical between the crates.io tarball and the upstream checkout.
+  
+  ## Code review findings
+  
+  The entire crate is a single file: `src/lib.rs` (82 lines including tests).
+  
+  - **`#![no_std]`**: Declared and consistent — no use of `std`, `alloc`, or any
+    external crate. Zero dependencies. This is genuinely a no-std, no-alloc crate.
+  - **`is_valid(hostname: &str) -> bool`**: The sole public function. Logic:
+    1. Rejects any byte not in `[a-zA-Z0-9.-]` via `is_valid_char`.
+    2. Splits on `.` and rejects empty labels, labels > 63 chars, labels starting
+       or ending with `-`.
+    3. Rejects empty hostnames and hostnames > 253 chars.
+  - **No unsafe code.** No `unsafe` blocks anywhere.
+  - **No I/O, no network, no filesystem access.** Pure computation on a `&str`.
+  - **No macros, no proc-macros, no build script.** Nothing executes at build time.
+  - **No panics in non-test code.** All operations are infallible on `&str`/`u8`.
+  - **Correctness note:** The function accepts hostnames starting or ending with `.`
+    only if the split produces non-empty labels — but `"invalid.name."` is correctly
+    rejected by the test (trailing `.` produces an empty label via `split('.')`).
+    Leading `.` similarly produces an empty label. This is correct.
+  - **Correctness note:** `".invalid"` starts with `.`, and `split('.')` yields
+    `["", "invalid"]` — the empty label causes rejection. Verified correct.
+  - **Minor doc typo:** Line 28 says "lables" instead of "labels". Cosmetic only.
+  - **Test coverage:** Tests cover valid hostnames (mixed case, numeric, dotted) and
+    invalid hostnames (leading/trailing `-`, special chars, leading/trailing `.`,
+    oversized label, empty label). Reasonable coverage for this scope.
+  
+  ## Cross-check against existing reviews
+  
+  No existing reviews found for any version of hostname-validator in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  - Nothing skipped. The entire crate (1 source file, 82 lines) was read end-to-end.
+  - RFC 1123 compliance is not exhaustively verified against the RFC text, but the
+    implementation is straightforward and the validation rules are clearly documented
+    and tested.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: high
+  - understanding: high
+----- SIGN CREV PROOF -----
+UneyLMU4g-O0o1EYFPKzrbK9ZAqlfKk7nvxk_CAR6e3ycevJF-mBDrRmlFZF5vH2ithjme5pCGUy1TSRQ5ZtAQ
+----- END CREV PROOF -----
+
