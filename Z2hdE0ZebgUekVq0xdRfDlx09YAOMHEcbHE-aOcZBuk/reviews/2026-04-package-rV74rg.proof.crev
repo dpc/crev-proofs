@@ -7907,3 +7907,112 @@ comment: |-
 Kpg8hQLrHr1MLIx7SqBEVbjnx5uy8q8VvthOzZTqGAisd-whEIvPInTlNu2TGz3dCKlrtJ_i1ELI2NTZbRC2CA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T16:41:35+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: asn1-rs-impl
+  version: 0.2.0
+  digest: uUS1nAkg6Xrp0uUSQBbD_8s5n_oBuG0nSzFd1Xi1Vt4
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: asn1-rs-impl 0.2.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/asn1-rs-impl-0.2.0
+  - Upstream repository: https://github.com/rusticata/asn1-rs
+  - Upstream commit verified: a20e5f7319c896737ad0f2557037817b91ad854f
+  - Upstream tag for version: asn1-rs-0.6.0 (monorepo; impl subcrate released alongside main crate)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `a20e5f7319c896737ad0f2557037817b91ad854f` with `path_in_vcs: "impl"`. That commit is tagged `asn1-rs-0.6.0` in the upstream repo (no separate tag for `asn1-rs-impl`; this is a workspace monorepo). Compared `src/lib.rs`, `Cargo.toml.orig`, and `tests/test_oid.rs` against the upstream at that commit — all files are bit-for-bit identical. Manifest differences are limited to the standard cargo-publish normalisation (field reordering). No discrepancies.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — the crate is 127 lines (one file `src/lib.rs` + one test file), well within the range for a careful end-to-end read.
+  
+  ### Claims baseline
+  
+  The crate claims to provide "implementation details for the `asn1-rs` crate". It is a proc-macro crate (`proc-macro = true`) providing two compile-time macros: `encode_oid!` and `encode_int!`. It depends only on `proc-macro2`, `quote`, and `syn` — standard proc-macro ecosystem crates.
+  
+  ### File map
+  
+  - `src/lib.rs` (127 lines) — **read in full**
+  - `tests/test_oid.rs` (16 lines) — **read in full**
+  - `Cargo.toml` / `Cargo.toml.orig` — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **proc-macro surface**: Yes, this is a proc-macro crate. Two `#[proc_macro]` functions: `encode_oid` and `encode_int`. Both are reviewed below.
+  - **unsafe blocks**: `rg -n 'unsafe' src/` — zero hits. No unsafe code.
+  - **FFI surface**: None. No `extern "C"`, no bindgen, no linked C libraries.
+  - **Dependencies**: `proc-macro2`, `quote`, `syn` — all standard proc-macro utilities, appropriate for a proc-macro crate. No surprising dependencies.
+  
+  ### Detailed code review
+  
+  #### `encode_oid` (lines 6–45)
+  
+  This proc-macro takes a dotted OID string (e.g. `1.2.840.113549`) and returns a byte-array literal with the BER/DER-encoded OID. It also supports a `rel ` prefix for relative OIDs.
+  
+  - Parses the token stream as a string, splits on `.`, parses each component as `u128`.
+  - Validates non-relative OIDs have at least 2 components, with first <= 2 and second <= 39 (standard OID rules).
+  - Encodes using standard base-128 encoding via `encode_base128`.
+  - Constructs a string like `[0x2a, 0x86, ...]` and parses it as a `TokenStream`.
+  - Error handling uses `Error::new(...).to_compile_error()` — produces compiler errors, no panics on malformed input except via `.unwrap()` on `s.parse()` at line 44, which is safe because the string is always a valid Rust array literal constructed by the function itself.
+  
+  **Minor observations:**
+  - Line 22: special case for single-component `0` returns `[0]` — this is a quirk (OID `0` alone isn't a standard OID), but it's a macro for internal use and documented behavior.
+  - Line 26: validation `items[1] > 39` is slightly non-standard — for arc 2, the second component can be > 39 per ITU-T X.660. However, this is a known simplification and doesn't affect safety.
+  
+  #### `encode_base128` (lines 56–71)
+  
+  Pure function, no I/O, no unsafe. Implements standard base-128 variable-length encoding. Handles the `val == 0` case correctly (outputs single byte `0x00`). Logic is correct: builds bytes in reverse order then reverses.
+  
+  #### `encode_int` (lines 73–126)
+  
+  Takes a literal integer and returns its big-endian byte representation with leading zeros stripped. Uses `parse_macro_input!` and delegates to `impl_encode_int`.
+  
+  - `impl_encode_int` (lines 113–126): Parses as `u64`, converts to big-endian bytes, skips leading zeros, formats as array literal.
+  - The `.unwrap()` at line 125 is safe — the formatted string is always a valid array literal.
+  - Lines 82–110 are commented-out dead code from an earlier implementation. Harmless but untidy.
+  
+  #### `create_error` (lines 48–53)
+  
+  Simple helper that wraps a message in a compile-time error. No concerns.
+  
+  ### Claims vs. reality reconciliation
+  
+  The crate claims to provide implementation details (proc macros) for `asn1-rs`. It provides exactly two compile-time macros for encoding OIDs and integers. No network access, no filesystem access, no process spawning, no environment variable reading. All capabilities are justified by the stated purpose.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The commented-out code block (lines 82–110) in `encode_int` is dead code. It's harmless but could be cleaned up.
+  - No README file is present in the crate (the parent repo has one). This is fine for an internal implementation crate.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+YRrp8DKaPCPbSU92V7HAZYDJndNsTc9jB7Wx9T_zV1JJYUU-OPgXCaJi_fw8lIXyf-fYsGmL7U4jWJd1I5mRDQ
+----- END CREV PROOF -----
+
