@@ -2680,3 +2680,99 @@ comment: |-
 9H4BAhMb204_PHfcXhpmE0MzD8qKMOvdv8xpx4ofVOwlogJYJNKTey7ASwlMMPP0dxxQF-DnEm8cL-jrYExZDg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T06:06:22.055538872+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: tinyvec_macros
+  version: 0.1.1
+  digest: x8y1m6HfG1KS0f4ozA-zKIRtfGEY72boYXErK8Jcqkg
+review:
+  thoroughness: medium
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: tinyvec_macros 0.1.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tinyvec_macros-0.1.1
+  - Upstream repository: https://github.com/Soveu/tinyvec_macros
+  - Upstream commit verified: 860c23a09d91c8b9203134a81de7888b7191d5f2
+  - Upstream tag for version: n/a (no tags in upstream repo)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `860c23a09d91c8b9203134a81de7888b7191d5f2`. Cloned upstream repo from `https://github.com/Soveu/tinyvec_macros` and checked out that commit. `diff -r --brief` of `src/` directories shows zero differences. `diff` of `Cargo.toml.orig` (crate) vs `Cargo.toml` (upstream) shows zero differences. The upstream repo has no git tags at all, so tag verification is not possible, but the commit sha match is sufficient.
+  
+  ## Code review findings
+  
+  - Thoroughness level: **medium** (23 Rust LoC — small enough for careful end-to-end read)
+  - Crate claims: "Some macros for tiny containers" — a utility macro crate for the `tinyvec` ecosystem.
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **`build.rs`**: not present (positive)
+  - **`Cargo.toml` dependency list**: zero dependencies (positive)
+  - **Proc-macro**: not a proc-macro crate (positive)
+  - **`unsafe` blocks**: `#![forbid(unsafe_code)]` is set at crate level — no unsafe code possible (positive)
+  - **FFI surface**: none
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to provide "some macros for tiny containers". It exports exactly one declarative macro, `impl_mirrored!`, which generates method implementations that delegate to either an `Inline` or `Heap` variant of an enum. This matches the claimed purpose — it's a helper for the `tinyvec` crate's enum-based container pattern. The macro:
+  
+  1. Takes a `Mirror` type name and a list of method signatures
+  2. For each method, generates an `#[inline(always)]` implementation that matches on `Inline`/`Heap` variants and delegates
+  3. Uses only `macro_rules!` — no procedural macro, no code generation beyond simple delegation
+  
+  No capabilities exercised beyond pure macro expansion. No I/O, no network, no filesystem, no env vars, no process spawning. `#![no_std]` confirmed.
+  
+  ### Red-flag scan
+  
+  - No `unsafe`, `transmute`, `from_raw`, raw pointers
+  - No `std::process::Command`, shell invocation
+  - No `std::env::var`
+  - No network libraries
+  - No `include_bytes!`, `include_str!`
+  - No base64/hex blobs, no obfuscated strings
+  - No `unwrap`, `expect`, `panic!`
+  - No conditional compilation beyond `#![no_std]`
+  - No `Drop` impls
+  - No custom serde deserializers
+  
+  Zero red flags found.
+  
+  ### Architecture summary
+  
+  The entire crate is a single `macro_rules!` macro (`impl_mirrored!`) that generates boilerplate method implementations for enums with `Inline` and `Heap` variants. It's a pure syntactic helper with no runtime behavior of its own.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped — the entire crate is 24 lines in a single file and was read in full.
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+pR2n46tlhqMky3ZY6kOlh3PULbKtBtLId_6NAzwEPdQD9465XgMoG0i5tF3HenDvedbJ58htSFk7a4pzKtq5Ag
+----- END CREV PROOF -----
+
