@@ -8999,3 +8999,134 @@ comment: |-
 y8MbjYMpxO2YAzGJqUDKdBZJvy-Ey-rttG4ThTJnbNMUhBETF0ExNzpnZVWYR-HJZ6Ju9iGRmN8xYCEvnnzYBQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T19:15:41.740523717+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: iana-time-zone-haiku
+  version: 0.1.2
+  digest: HjWf_ozD7T2ErF0rJfguNZmiw_90gxAIbFDA3_UzuyQ
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: iana-time-zone-haiku 0.1.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/iana-time-zone-haiku-0.1.2
+  - Upstream repository: https://github.com/strawlab/iana-time-zone
+  - Upstream commit verified: 668ef37a89162b7d24fb1cf8ee90054a8a2f3ad9
+  - Upstream tag for version: haiku/v0.1.2
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/strawlab/iana-time-zone at commit
+  `668ef37a89162b7d24fb1cf8ee90054a8a2f3ad9`, which is the commit tagged `haiku/v0.1.2`.
+  The `.cargo_vcs_info.json` sha and the version tag point to the same commit.
+  `diff -r --brief` between the crate tarball (excluding expected-to-differ files) and
+  `haiku/` subdirectory at that commit shows zero differences — all files bit-for-bit identical.
+  
+  ## Claims baseline
+  
+  The crate claims to be a support crate for `iana-time-zone` that retrieves the current
+  IANA time zone string on Haiku OS. On non-Haiku platforms it returns `None`. It depends
+  only on `cc` (build-dependency) for compiling a small C++ file.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — 62 Rust LoC plus 67 lines of C++, small enough
+  to read carefully end-to-end.
+  
+  ### File map
+  
+  - `Cargo.toml.orig` — **read in full**: Only dependency is `cc` (build-dep). No runtime
+    dependencies. Consistent with stated purpose.
+  - `build.rs` (22 lines) — **read in full**: Uses `cc::Build` to compile
+    `src/implementation.cc` as C++11. Reads `TARGET` env var (expected cargo-provided var,
+    not exfiltration). On Haiku targets, links `libbe` (Haiku's Application Kit). No network
+    calls, no writes outside OUT_DIR, no shelling out, no obfuscation. Clean.
+  - `src/lib.rs` (72 lines) — **read in full**: Declares one `extern "C"` FFI function
+    `iana_time_zone_haiku_get_tz`. Single public function `get_timezone()` that calls the
+    FFI with a stack-allocated 32-byte buffer. Returns `Option<String>`.
+  - `src/implementation.cc` (67 lines) — **read in full**: The C++ implementation. On Haiku,
+    uses `BLocaleRoster::Default()` and `BTimeZone` to get the timezone ID, copies it into
+    the caller-provided buffer. On non-Haiku, returns 0 (no-op). Wrapped in try/catch
+    returning 0 on exception. Clean and defensive.
+  - `README.md` — **read in full**: Brief description, badges. Consistent with claims.
+  - `LICENSE-APACHE`, `LICENSE-MIT` — standard license files, not read.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: Present. Compiles a small C++ file via `cc`. Only reads `TARGET` env var
+    (standard cargo variable). Links `libbe` on Haiku. No suspicious behavior. No network
+    access, no file writes outside build dir.
+  - **Dependencies**: Only `cc` as build-dep. No runtime dependencies at all. Appropriate
+    for purpose.
+  - **Proc-macro**: Not a proc-macro crate.
+  - **Unsafe blocks**: One `unsafe` block at `src/lib.rs:45-49`. Calls FFI function
+    `iana_time_zone_haiku_get_tz` with a pointer to a stack-allocated `[u8; 32]` buffer
+    and its length. The pointer is valid, aligned, and points to a single contiguous
+    allocation. The C++ side respects `buf_size` and never writes beyond it. The returned
+    length is used with `buf.get(..len)?` which returns `None` if out of bounds. Sound.
+  - **FFI surface**: Links to `iana_time_zone_haiku_get_tz` defined in `implementation.cc`.
+    On Haiku, also links `libbe` (Haiku system library for BApplication Kit). The C++
+    code uses only Haiku system APIs (`BLocaleRoster`, `BTimeZone`, `BString`) and standard
+    C++ (`cstddef`, `cstring`, `memcpy`). No external network calls or file I/O.
+  
+  ### Red-flag scan
+  
+  - No `transmute`, `from_raw`, raw pointer arithmetic.
+  - No `std::process::Command`, shell invocation.
+  - `std::env::var_os("TARGET")` in build.rs — standard cargo env var, not exfiltration.
+  - No `reqwest`, `ureq`, `hyper`, network access.
+  - No `include_bytes!`, `include_str!`, base64 blobs, hex blobs.
+  - No obfuscated strings.
+  - No `unwrap` in non-test code paths (build.rs uses `expect` on TARGET which is
+    guaranteed by cargo).
+  - No suspicious conditional compilation beyond `#[cfg(target_os = "haiku")]` and
+    `#ifdef __HAIKU__` which are expected.
+  - No `Drop` impls.
+  - No custom serde deserializers.
+  
+  ### Architecture summary
+  
+  Minimal crate with a single public function `get_timezone() -> Option<String>`. On Haiku,
+  it FFIs into a C++ function that queries the OS locale roster for the default timezone ID.
+  On non-Haiku, both the Rust wrapper and the C++ stub return "nothing" (`None` / `0`).
+  The data flow is simple: stack buffer → FFI call → bounds-checked slice → UTF-8 validated
+  → owned String.
+  
+  ### Reconciliation of claims vs reality
+  
+  The crate does exactly what it claims: retrieves the IANA timezone on Haiku, returns None
+  elsewhere. The only capabilities exercised are FFI to the compiled C++ and linking a Haiku
+  system library — both justified by the crate's purpose. No unjustified capabilities found.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - License files not read (standard Apache-2.0 / MIT dual license).
+  - Cannot verify runtime behavior on actual Haiku OS (not available for testing).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+aCksrB56XzaltEimvPwmI-sE4JCUNlX-nxla12ipZdSfDETZAJursAepB_L1SocDf25qmmROk96E6EQGMuSvCg
+----- END CREV PROOF -----
+
