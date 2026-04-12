@@ -8718,3 +8718,149 @@ comment: |-
 Ca6mUM6FTFNij27nnOCTVj-nvshviFfzoLiBWV_FgDkVjRFgX-DUEM1yTkD7zgVkdZ7eVOxIWYdAFiKFjNxLDw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: n0-snafu
+  version: 0.2.1
+  digest: n71by8QwRaa_PRiX6LpdAErMypaWVCc15sc2BHuNBv4
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: n0-snafu 0.2.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/n0-snafu-0.2.1
+  - Upstream repository: https://github.com/n0-computer/n0-snafu
+  - Upstream commit verified: 6a481696dba705f26dc584790fd2a2d49c4dd292
+  - Upstream tag for version: v0.2.1
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/n0-computer/n0-snafu at commit
+  `6a481696dba705f26dc584790fd2a2d49c4dd292` tagged `v0.2.1`. The sha from
+  `.cargo_vcs_info.json` matches the tag target exactly. `diff -r --brief` between
+  the crate source and upstream (excluding expected files) produced no differences.
+  `Cargo.toml.orig` is identical to upstream `Cargo.toml`.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — the crate has only 3 source files (~562 LoC
+  including tests), small enough to read carefully end-to-end.
+  
+  ### Claims baseline
+  
+  The crate claims to be "Utilities for working with snafu" — an error-handling
+  utility library that wraps snafu's error types with enhanced backtrace and
+  span-trace support. It provides a unified `Error` enum, `ResultExt` extension
+  traits for adding context, and integrates `color-backtrace` for pretty-printed
+  backtraces and `tracing-error` for span traces.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: Zero `unsafe` blocks anywhere in the crate. Positive.
+  - **FFI surface**: None. Positive.
+  - **Dependencies**: `anyhow` (with backtrace feature), `btparse`, `color-backtrace`,
+    `snafu`, `tracing-error`. All are reasonable and justified for an error-handling
+    utility crate that provides backtrace formatting and span trace integration.
+    No surprising or out-of-scope dependencies.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** (9 lines) — **read in full**. Module declarations and re-exports
+    only. Re-exports `tracing_error::ErrorLayer`, `Error`, `Result`, `ResultExt`,
+    and `SpanTrace`. Clean and minimal.
+  
+  - **src/spantrace.rs** (28 lines) — **read in full**. A newtype wrapper around
+    `tracing_error::SpanTrace` that implements `Debug`, `Display`, `Deref`, and
+    `snafu::GenerateImplicitData`. All implementations are trivial delegations.
+    No concerns.
+  
+  - **src/error.rs** (621 lines) — **read in full**. This is the core of the crate.
+    Contains:
+    - `Result<A, E>` type alias defaulting to `Error`.
+    - `format_err!` macro — creates `Error::Whatever` via `snafu::FromString`. Clean.
+    - `ResultExt<T>` trait with `context`, `with_context`, and `e` methods.
+      Three implementations: for `Result<T, E: snafu::Error>`, for `Result<T, Error>`
+      (self-wrapping), and for `Option<T>`. All follow the same pattern of wrapping
+      errors into `Error::Message` or `Error::Whatever` with span trace and backtrace
+      generated via `GenerateImplicitData::generate()`.
+    - `NoneError` — private sentinel error used when converting `None` to `Error`.
+    - `Formatted` trait — trait-object-safe backtrace accessor. Blanket impl for
+      `T: snafu::Error + snafu::ErrorCompat`. Clean.
+    - `Error` enum with four variants: `Source`, `Message`, `Anyhow`, `Whatever`.
+      Each carries a span trace and optional backtrace. `From<E1: Formatted>` impl
+      converts typed errors into `Error::Source`. `FromString` impl for snafu's
+      `whatever!` macro support.
+    - `Debug` impl — the most complex part. Uses `color_backtrace::BacktracePrinter`
+      with custom frame filters to produce formatted error chains. Filters reference
+      `n0_snafu::testerror::Error` which appears to be a leftover from development
+      (the module `testerror` doesn't exist in this crate). This is a minor code
+      quality issue but not a security concern — the filter simply won't match
+      anything in production.
+    - `Error::stack()` — recursively collects backtraces and sources from the error
+      chain. Uses `downcast_ref` to detect `Formatted` trait objects. Logic is
+      straightforward chain-walking.
+    - `Backtrace` enum wrapping either `snafu::Backtrace` or `std::backtrace::Backtrace`.
+      Implements `color_backtrace::Backtrace` trait. The `Std` variant uses
+      `btparse::deserialize(bt).expect("failed to parse stacks")` — this is the one
+      `expect()` in non-test code. It could panic if `std::backtrace::Backtrace`
+      produces unparseable output, but this is a reasonable assumption for a
+      debugging/diagnostic tool.
+    - `Source` enum and `Display` impl for error chain display.
+    - `ErrorCompat` impl — returns the deepest backtrace from the stack.
+    - `Display` impl — formats error messages with chained sources.
+    - Tests (lines 509-620) — verify anyhow compatibility, `whatever!` macro,
+      context on `None`, `format_err!`, IO error wrapping, message wrapping, and
+      option wrapping.
+  
+  ### Reconciliation against claims
+  
+  The crate does exactly what it claims: provides snafu-based error handling
+  utilities with backtrace and span trace integration. No capabilities beyond
+  what's stated (no network, no filesystem, no process spawning, no env var
+  reading). All dependencies are justified by the crate's purpose.
+  
+  ### Minor observations
+  
+  1. The `Debug` impl contains a hardcoded filter for `n0_snafu::testerror::Error`
+     which doesn't correspond to any module in the published crate. This is harmless
+     but indicates the filter list may be stale.
+  2. One `expect()` call in `Backtrace::frames()` for the `Std` variant — acceptable
+     for a diagnostic tool, unlikely to panic in practice.
+  3. The crate description has a typo: "Utitilities" instead of "Utilities".
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  - Did not review `deny.toml` or `Makefile.toml` (CI/dev tooling only, not
+    compiled into the crate).
+  - Did not deeply analyze the `color_backtrace` frame filtering logic beyond
+    confirming it only filters display output.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+xidxkc3f9Rgn_O8Jg5iv-OInGUbvUkmVYW9B7fsdruZw3YdyXhi3KUwCCZrbeiWm5iw7OpSTJfq8fMEbc-nDCA
+----- END CREV PROOF -----
+
