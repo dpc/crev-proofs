@@ -3869,3 +3869,100 @@ comment: |-
 goEQx0n_n6x2jatE7lcjJ1m3evxlO8jJ0uY8UKXvViphYXlQNvJGoZYapL-DwZ4rkFb0Gu2PJtYDWnJVXIjiDg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T07:12:45.828927773+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: axum-auth
+  version: 0.8.1
+  digest: Biw1LCK-zk8ntCDjBUvYwhvlYBNhvsBYJoibbFTkoLQ
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: axum-auth 0.8.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/axum-auth-0.8.1
+  - Upstream repository: https://github.com/owez/axum-auth
+  - Upstream commit verified: 99c223f1cf8dfcb21d5f256a55ea1300a96c8288
+  - Upstream tag for version: no version tag; commit is master HEAD titled "Bumped version"
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  Crate claims to provide high-level HTTP Basic and Bearer authentication extractors for axum. It parses the `Authorization` header, decodes Basic auth (base64), and returns bearer tokens as strings. Dependencies are axum-core, base64, and http — all expected for this purpose.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/owez/axum-auth at commit `99c223f1cf8dfcb21d5f256a55ea1300a96c8288` (master HEAD, "Bumped version"). No version tag exists for 0.8.1 specifically; the `.cargo_vcs_info.json` sha matches the upstream commit exactly. All source files are bit-for-bit identical. `Cargo.toml.orig` matches upstream `Cargo.toml` exactly. Only `.git` directory differs (expected).
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — crate is ~109 Rust LoC across 3 files, small enough to read carefully end-to-end.
+  
+  ### File map
+  
+  - `src/lib.rs` (73 lines): **read in full** — Module declarations, re-exports, error constants, shared `get_header()` helper.
+  - `src/auth_basic.rs` (177 lines): **read in full** — `AuthBasic` struct, `AuthBasicCustom` trait, base64 decode logic.
+  - `src/auth_bearer.rs` (163 lines): **read in full** — `AuthBearer` struct, `AuthBearerCustom` trait, bearer token extraction.
+  - `tests/basic.rs` (134 lines): **read in full** — Integration tests for basic and bearer auth.
+  - `tests/custom.rs` (114 lines): **read in full** — Integration tests for custom extractor traits.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe**: Zero `unsafe` blocks. Positive.
+  - **FFI**: None. Positive.
+  - **Dependencies**: `axum-core` (request extraction trait), `base64` (decoding Basic auth), `http` (header types). All justified by the crate's stated purpose. No surprising deps.
+  
+  ### Claims vs reality reconciliation
+  
+  - Crate claims to parse Basic and Bearer HTTP auth headers: confirmed, that's all it does.
+  - No filesystem access, no network access, no environment variable reads, no process spawning.
+  - No obfuscated strings, no binary blobs, no conditional compilation beyond feature gating of basic/bearer modules.
+  - The `ERROR_OVERWRITE` field on both custom traits is declared but never actually used in the decode logic — it's accepted but ignored. This is a minor API design issue (dead code in the trait), not a security concern.
+  
+  ### Detailed findings
+  
+  1. **`auth_basic.rs:155`**: Basic auth parsing uses `split_once(' ')` and checks for `"Basic"` prefix. This is case-sensitive, which is technically stricter than RFC 7617 (which says the scheme is case-insensitive), but is a reasonable simplification and matches common practice.
+  
+  2. **`auth_basic.rs:167-168`**: Base64 decoding uses `general_purpose::STANDARD`, then `String::from_utf8`. Both return `Result` and errors are properly propagated. No panics on invalid input.
+  
+  3. **`auth_basic.rs:171`**: Colon split uses `split_once(':')` — correctly handles passwords containing colons (the first colon is the delimiter, remainder goes into password). If no colon is present, returns `(id, None)` — reasonable behavior.
+  
+  4. **`auth_bearer.rs:152-153`**: Bearer token parsing uses `split_once(' ')` and checks for `"Bearer"`. Same case-sensitivity note as basic auth. Special case at line 157 handles bare `"Bearer"` with no token, returning empty string — slightly unusual but not harmful.
+  
+  5. **`auth_bearer.rs:142-149`**: Bearer extractor duplicates the header-fetching logic from `lib.rs::get_header()` instead of calling it. This is a minor code quality issue, not a security concern.
+  
+  6. **No length limits on header values**: The crate does not impose any maximum length on the Authorization header. The README explicitly acknowledges this: "This crate purposefully does not limit the maximum length of headers arriving so please ensure your webserver configurations are set properly." This is an explicit design decision, not an oversight — the responsibility is correctly delegated to the web server configuration.
+  
+  7. **`ERROR_OVERWRITE` unused**: Both `AuthBasicCustom` and `AuthBearerCustom` traits define `ERROR_OVERWRITE: Option<&'static str>` but neither `decode_request_parts` implementation actually reads it. Custom error messages are not applied. This is a minor API issue — the field exists but does nothing.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped — entire crate read in full.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+Oowh5b7gkdbTPWwTZ2xrfMnWleBFhPKJ51XQltodIo5ouGeZz12v-VWJh71X6X53CDClA4gZsWmVQaGzUVe5Ag
+----- END CREV PROOF -----
+
