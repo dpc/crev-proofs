@@ -8016,3 +8016,142 @@ comment: |-
 YRrp8DKaPCPbSU92V7HAZYDJndNsTc9jB7Wx9T_zV1JJYUU-OPgXCaJi_fw8lIXyf-fYsGmL7U4jWJd1I5mRDQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T16:48:31+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: aleph-bft-rmc
+  version: 0.12.0
+  digest: rlTl6zMHvXD0DljI2hxir32n0fY4cfSLc4ZXKEjFKW8
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: aleph-bft-rmc 0.12.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aleph-bft-rmc-0.12.0
+  - Upstream repository: https://github.com/Cardinal-Cryptography/AlephBFT
+  - Upstream commit verified: a48614ea52f55c248e1b1c7270531bb8fd2d8ff2
+  - Upstream tag for version: n/a (repo uses only one tag `codec-3.0`; no per-crate version tags)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` records sha `a48614ea52f55c248e1b1c7270531bb8fd2d8ff2` with `path_in_vcs: "rmc"`. Checked out that commit in the upstream repo and ran `diff -r --brief` between the crates.io source and `rmc/` subdirectory (excluding Cargo.toml, .cargo_vcs_info.json, .cargo-ok). Result: **all files bit-for-bit identical**. Cargo.toml.orig matches upstream Cargo.toml with expected path-dep-to-version-spec rewriting by `cargo publish`.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium.** Crate is 940 Rust LoC across 4 files, well within end-to-end reading range.
+  
+  ### Claims baseline
+  
+  Crate claims to be "Reliable MultiCast - a primitive for Reliable Broadcast protocol", part of the AlephBFT consensus toolkit. It should collect individually signed hashes from multiple nodes, combine them into multisignatures, and re-broadcast once a threshold is reached.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: `rg -n 'unsafe'` across all source files returned zero hits. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  - **Dependencies**: `aleph-bft-crypto`, `aleph-bft-types` (sibling crates in the same repo - expected), `async-trait`, `codec` (parity-scale-codec), `futures`, `futures-timer`, `log`. All are justified by the crate's purpose (async BFT protocol primitive needing serialization, async scheduling, and logging). No network libraries, no filesystem access, no process spawning. Positive.
+  
+  ### Per-file review
+  
+  #### `src/lib.rs` (34 lines) - **read in full**
+  
+  Re-exports types from `aleph-bft-crypto`. Defines `Message<H, S, M>` enum with two variants: `SignedHash` (individual signature) and `MultisignedHash` (complete multisignature). Simple, clear, no concerns.
+  
+  #### `src/handler.rs` (351 lines, ~220 non-test) - **read in full**
+  
+  Core logic: `Handler<H, MK>` maintains a `HashMap<H, PartiallyMultisigned<H, MK>>` tracking signature accumulation per hash. Three public methods:
+  
+  - `on_start_rmc(hash)` - signs a hash and returns either SignedHash (if quorum not reached), MultisignedHash (if quorum reached with this signature), or Noop (if already completed).
+  - `on_signed_hash(unchecked)` - verifies signature, adds to state, returns multisigned if quorum reached.
+  - `on_multisigned_hash(unchecked)` - verifies multisignature, stores completed state.
+  
+  Observations:
+  - Signature verification is delegated to `aleph-bft-crypto` (`.check()` and `.check_multi()`). Errors are properly propagated.
+  - The `already_completed` check prevents double-processing.
+  - `handle_signed_hash` correctly handles both first-signature and accumulation cases.
+  - Once completed, the hash state is replaced with `Complete` variant containing the multisigned result.
+  - Test coverage is thorough: tests for pre-quorum, at-quorum, post-quorum, bad signatures, and bad multisignatures.
+  - No panics, no unwraps in non-test code.
+  
+  No concerns.
+  
+  #### `src/service.rs` (347 lines, ~115 non-test) - **read in full**
+  
+  `Service<H, MK, SCH>` combines `Handler` with a `TaskScheduler` to drive the protocol:
+  
+  - `start_rmc(hash)` - delegates to handler, schedules broadcast of signed or multisigned hash.
+  - `process_message(message)` - delegates to handler based on message variant, schedules multisigned broadcast on completion.
+  - `next_message()` - awaits next scheduled broadcast from the scheduler.
+  
+  Observations:
+  - Error handling via `warn!` logging for bad signatures/multisignatures in `process_message` - returns `None` rather than propagating. This is a design choice appropriate for a network protocol (don't crash on bad peer messages).
+  - Note: in the `SignedHash` branch of `process_message`, the warn message says "failed handling multisigned hash" but the actual error is from `on_signed_hash`. This is a minor log message inaccuracy (cosmetic bug).
+  - Test suite simulates a full multi-node environment with message filtering, testing simple scenarios, faulty networks (20% delivery), nodes hearing only multisignatures, and bad signature rejection. Tests are well-structured.
+  
+  No security concerns.
+  
+  #### `src/scheduler.rs` (208 lines, ~130 non-test) - **read in full**
+  
+  `DoublingDelayScheduler<T>` implements exponential backoff for task re-broadcast:
+  
+  - Uses a `BinaryHeap<Reverse<IndexedInstant>>` for scheduling (min-heap by time).
+  - Each task is initially scheduled immediately, then rescheduled with doubling delays starting from `initial_delay`.
+  - `with_tasks` spreads initial tasks evenly across the first `initial_delay` period.
+  - `next_task` blocks (via `pending().await`) if no tasks exist, or waits via `Delay::new()` until the next scheduled instant.
+  
+  Observations:
+  - The `.expect()` on line 119 is justified: the `peek()` check guarantees an element exists when `pop()` is called, and no other code path can remove it between peek and pop (single-threaded, no await between them).
+  - The `div` on line 82 has a comment "safety: len is non-zero" which is correct due to the `if initial_tasks.is_empty() { return }` guard above.
+  - `scheduled_tasks` grows unboundedly - tasks are never removed, only their delays double. For the intended use case (small number of RMC messages per consensus round), this is fine. For long-lived instances with many distinct tasks, this could be a memory concern, but that's outside the crate's design scope.
+  - No panics in non-test code besides the justified `.expect()`.
+  
+  No security concerns.
+  
+  ### Red-flag scan results
+  
+  - `unsafe`: 0 hits.
+  - `transmute`, `from_raw`, raw pointers: 0 hits.
+  - `std::process::Command`, shell invocation: 0 hits.
+  - `std::env::var`: 0 hits.
+  - `reqwest`, `ureq`, `hyper`, TCP sockets: 0 hits.
+  - `include_bytes!`, `include_str!`: 0 hits.
+  - Base64/hex blobs, obfuscated strings: 0 hits.
+  - `unwrap` in non-test code: 0 hits (only `.expect()` with justification).
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to implement Reliable MultiCast for BFT consensus. The code does exactly this: it accumulates individually signed messages, verifies signatures, forms multisignatures when quorum is reached, and schedules re-broadcasts with exponential backoff. No capabilities beyond the claimed purpose. No network I/O, no filesystem access, no environment variable reads, no process spawning.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The `aleph-bft-mock` dev-dependency (used only in tests) was not reviewed.
+  - Correctness of `aleph-bft-crypto` signature verification was not audited (out of scope for this crate review).
+  - The minor log message inaccuracy in `service.rs` (line 90: "failed handling multisigned hash" for a signed hash error) is cosmetic and does not affect security or correctness.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+pGL3b3m8G9mmNHJI83Wd4RJCwpmY9AqCQd_bH3E5C09CCwvm1roZsqupJ-jGZtaJyNlEQw9V8xMcw-XwJI3mAw
+----- END CREV PROOF -----
+
