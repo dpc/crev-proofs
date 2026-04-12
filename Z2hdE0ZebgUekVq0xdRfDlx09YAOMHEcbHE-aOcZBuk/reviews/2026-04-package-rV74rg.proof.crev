@@ -3428,3 +3428,159 @@ comment: |-
 n_LLys97M-TuQGmiNsxwWTam0tBPEFJ8e8gc1UpmYi9NmqBbRnx7GwoHAvvR9s6EWfyJbTnds1BbBCAHC-CcBg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-11T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: vss-client
+  version: 0.3.1
+  digest: fip4-_tPdiizaLYL5djMRIe82bt0xEa-XCkVVZTo4mI
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  ## Overview
+  
+  Client-side library to interact with Versioned Storage Service (VSS), a server-side cloud
+  storage solution for noncustodial Lightning wallets. Published by the LDK (Lightning Dev Kit)
+  team under the `lightningdevkit` GitHub organization.
+  
+  Repository: https://github.com/lightningdevkit/vss-rust-client
+  
+  ## External Verification
+  
+  - VCS commit: db15387826bf28aa60dab55db4c1105c0e2a1369
+  - Upstream match: PASS. Cloned upstream repo, checked out commit matching .cargo_vcs_info.json.
+    diff -ru shows only expected cargo publish artifacts (Cargo.toml.orig, .cargo_vcs_info.json).
+    The commit corresponds to the v0.3.1 tag in the upstream repository.
+  
+  ## Build Script (build.rs)
+  
+  Read in full. The build script is gated behind #[cfg(genproto)], which is a custom cfg flag
+  that is never set during normal compilation. Under normal builds, main() is an empty function.
+  When genproto is set (via RUSTFLAGS="--cfg genproto"), it downloads a .proto file from a
+  hardcoded GitHub URL and runs prost_build to generate Rust types. The prost-build and
+  reqwest build-dependencies are also gated behind cfg(genproto).
+  
+  Verdict: Safe. The build script does nothing in normal builds.
+  
+  ## Dependency Analysis
+  
+  Runtime dependencies:
+  - prost 0.11.6 - protobuf encoding/decoding (matches stated purpose)
+  - reqwest 0.11.13 (rustls-tls, no default features) - HTTP client (matches stated purpose)
+  - tokio 1 (time feature only) - async runtime for sleep/retry (matches stated purpose)
+  - rand 0.8.5 - random jitter for retry policy (matches stated purpose)
+  - async-trait 0.1.77 - async trait support (matches stated purpose)
+  - base64 0.21.7 - base64 encoding for key obfuscation (matches stated purpose)
+  - bitcoin_hashes 0.14.0 - HMAC-SHA256 for key derivation (matches stated purpose)
+  - Optional (lnurl-auth feature): bitcoin 0.32.2, url 2.5.0, serde/serde_json - LNURL auth
+  
+  All dependencies are consistent with the stated purpose. No unexpected or suspicious dependencies.
+  
+  ## Unsafe Code
+  
+  All unsafe usage is in chacha20poly1305.rs, in the fixed_time_eq function (lines 160-196).
+  This function implements constant-time comparison using read_volatile/write_volatile to prevent
+  compiler optimizations that could introduce timing side channels. This is a well-known pattern
+  borrowed from the rust-crypto / LDK codebase. The unsafe operations are limited to volatile
+  reads and writes of a stack-local u8 variable r -- no pointer arithmetic, no memory allocation,
+  no transmutation. The function asserts that input slices have equal length.
+  
+  Verdict: The unsafe code is minimal, well-understood, and appropriate for its purpose.
+  
+  ## Proc Macros
+  
+  No proc macros defined in this crate. The crate uses prost::Message derive macro (from prost)
+  and async_trait attribute macro (from async-trait), both external, widely-used crates.
+  
+  ## FFI Surface
+  
+  None. No extern "C", no #[no_mangle], no libc usage, no FFI.
+  
+  ## Red-Flag Patterns
+  
+  - Network calls: Present in client.rs (via reqwest) and lnurl_auth_jwt.rs (via reqwest).
+    These are the core purpose of the crate -- making HTTP requests to a VSS server and to LNURL
+    auth endpoints. The URLs are user-provided (base_url, LNURL auth URL). No hardcoded
+    exfiltration targets.
+  - Environment variables: None in runtime code. Only in build.rs under cfg(genproto) for
+    OUT_DIR (standard cargo env var).
+  - Process spawning: None.
+  - File system access: None in runtime code. Only in build.rs under cfg(genproto).
+  - Global mutable state: LnurlAuthToJwtProvider uses RwLock<Option<JwtToken>> for caching
+    JWT tokens. This is appropriate and properly synchronized.
+  
+  ## Code Review Summary
+  
+  src/lib.rs (30 lines): Read in full. Module declarations only. No logic.
+  
+  src/client.rs (164 lines): Read in full. VssClient<R> is a thin HTTP client wrapping reqwest.
+  It has four public methods (get_object, put_object, delete_object, list_key_versions) that
+  serialize protobuf requests, POST them to the VSS server, and deserialize protobuf responses.
+  All methods use the retry policy. Clean, straightforward code.
+  
+  src/error.rs (106 lines): Read in full. Standard error enum with From impls. Maps VSS server
+  error codes to Rust error variants. No concerns.
+  
+  src/types.rs (381 lines): Read in full. Auto-generated prost protobuf types. Standard protobuf
+  data structures with documentation.
+  
+  src/crypto/ (chacha20.rs ~495 lines, chacha20poly1305.rs ~200 lines, poly1305.rs ~391 lines):
+  Read in full. Vendored implementations of ChaCha20 and Poly1305, ported from rust-crypto
+  (Andrew Moon's poly1305-donna). Same code used in the LDK/rust-lightning project. Includes
+  test vectors from IETF RFCs and NaCl. Code is pub(crate) only, not exposed externally.
+  
+  The constant-time comparison (fixed_time_eq) uses volatile reads/writes which is a reasonable
+  approach but not guaranteed by the Rust memory model to be truly constant-time.
+  
+  src/headers/ (mod.rs ~108 lines, lnurl_auth_jwt.rs ~308 lines): Read in full. Defines a
+  VssHeaderProvider trait for pluggable auth header generation. LnurlAuthToJwtProvider implements
+  LNURL Auth (LUD-05) to obtain JWT tokens. Derives child keys from BIP32 parent key, signs
+  LNURL challenges, caches JWT tokens with expiry handling. JWT parsing only extracts the expiry
+  claim (appropriate since client is consumer, not validator, of the JWT).
+  
+  Note: unwrap() is used on RwLock in get_jwt_token (lines 135, 142). Would panic if the RwLock
+  is poisoned. Generally acceptable in practice.
+  
+  src/util/retry.rs (245 lines): Read in full. Clean decorator-pattern retry policy with
+  exponential backoff, max attempts, max total delay, jitter, and error filtering.
+  
+  src/util/storable_builder.rs (112 lines): Read in full. Encrypt-then-MAC using
+  ChaCha20-Poly1305 for storable objects. The deconstruct method has unwrap() on
+  encryption_metadata (line 66) which would panic if None.
+  
+  src/util/key_obfuscator.rs (184 lines): Read in full. Deterministic key obfuscation using
+  ChaCha20-Poly1305 with synthetic (HMAC-based) nonces. Sound implementation.
+  
+  ## Existing Reviews
+  
+  No existing cargo-crev reviews found for this crate.
+  
+  ## Assessment
+  
+  The crate does exactly what it claims: provides a thin HTTP client for VSS with optional LNURL
+  auth support and client-side encryption utilities. The code is clean, well-structured, and
+  properly scoped. The crypto implementations are vendored from well-known sources (rust-crypto /
+  LDK) and include test vectors. No malicious patterns, no unexpected behavior.
+  
+  Minor concerns:
+  1. Vendored crypto (ChaCha20/Poly1305) instead of using a maintained crypto library -- but this
+     is a deliberate choice from the LDK project to minimize dependencies.
+  2. A few unwrap() calls that could panic in edge cases (poisoned RwLock, missing encryption_metadata).
+  3. The constant-time comparison is best-effort due to Rust/LLVM not guaranteeing volatile
+     semantics prevent all timing leaks.
+----- SIGN CREV PROOF -----
+kJlWfJl_6j0ipPV2UPaTReH-wYchTBDh2Toy7KAN8h-d0PRjL9q7sAP-IOTpc9SF5KI6wrrvq7Ho_ixGSZRKDg
+----- END CREV PROOF -----
+
