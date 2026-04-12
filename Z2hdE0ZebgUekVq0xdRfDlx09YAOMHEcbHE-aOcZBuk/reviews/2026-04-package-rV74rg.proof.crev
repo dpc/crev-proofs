@@ -5832,3 +5832,104 @@ comment: |-
 tKXUhrJ6YHz_xQ8_0Y30AYkojW7Ya26DjJgd6StEQvyNV2lpcJu_OZS4MDhlHxhoJYfCdnm0MVdSPraNoEvwCQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: stable_deref_trait
+  version: 1.2.0
+  digest: nSByNb8Gm3mLQItFfk2LhBUfpeusoqcHbHxolGl6QoM
+review:
+  thoroughness: high
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: stable_deref_trait 1.2.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/stable_deref_trait-1.2.0
+  - Upstream repository: https://github.com/storyyeller/stable_deref_trait
+  - Upstream commit verified: 66f9d8a15b7209c45f58edee6c1b6bb497b7bd31
+  - Upstream tag for version: 1.2.0
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records git sha1 `66f9d8a15b7209c45f58edee6c1b6bb497b7bd31`.
+  The upstream repo has a tag `1.2.0` pointing to the same commit.
+  Diffing the crate source against the upstream repo at that tag shows no
+  differences in source files. The only expected differences are the
+  cargo-generated `Cargo.toml` header and the presence of `Cargo.toml.orig`
+  in the crate package. Verification passes cleanly.
+  
+  ## Code review findings
+  
+  ### File inventory
+  
+  - `src/lib.rs` (190 lines) - The entire crate logic
+  - `Cargo.toml` / `Cargo.toml.orig` - Package metadata
+  - `README.md` - Documentation
+  - `LICENSE-APACHE`, `LICENSE-MIT` - Dual license files
+  - `.gitignore` - Standard gitignore
+  
+  No `build.rs`, no proc-macros, no FFI, no dependencies.
+  
+  ### src/lib.rs analysis
+  
+  The crate defines two unsafe marker traits:
+  
+  1. `StableDeref: Deref` - Marker for types that deref to a stable (fixed) address even when moved.
+  2. `CloneStableDeref: StableDeref + Clone` - Marker for types where clones deref to the same address.
+  
+  Both traits are empty (no methods) and purely marker traits. The `unsafe` keyword is appropriate here because incorrect implementations could lead to undefined behavior in downstream crates that rely on the stability guarantee.
+  
+  **Unsafe usage:** The crate uses `unsafe impl` blocks exclusively for implementing these marker traits on well-known standard library types. There are no unsafe function bodies, no raw pointer manipulation, no transmutes, and no inline assembly. All `unsafe impl` blocks are for types whose deref stability is well-established:
+  
+  - `Box<T>`, `Vec<T>`, `String` - heap-allocated, stable address
+  - `Rc<T>`, `Arc<T>` - reference-counted, stable address; also implement `CloneStableDeref`
+  - `CString`, `OsString`, `PathBuf` - owned string types with heap storage
+  - `Ref<T>`, `RefMut<T>` - `RefCell` borrows, stable for borrow lifetime
+  - `MutexGuard<T>`, `RwLockReadGuard<T>`, `RwLockWriteGuard<T>` - lock guards
+  - `&T`, `&mut T` - references, inherently stable
+  
+  All implementations are correctly gated behind `cfg(feature = "alloc")` or `cfg(feature = "std")` as appropriate. The feature hierarchy (`std` implies `alloc`) is correct.
+  
+  **Documentation:** Extensive and high-quality doc comments with clear examples of types that can and cannot safely implement the traits, including subtle edge cases (copy-on-write, interior mutability).
+  
+  ### Red flag scan
+  
+  - No network access
+  - No file system access
+  - No process spawning
+  - No environment variable reading
+  - No macro_rules or proc-macro definitions
+  - No build.rs
+  - No dependencies (zero deps)
+  - No code generation
+  - Clean, minimal, single-purpose crate
+  
+  ## Cross-check against existing reviews
+  
+  No existing cargo-crev reviews found for this crate.
+  
+  ## Open questions / things skipped
+  
+  None. The crate is small enough to review in its entirety. All files were read and analyzed.
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: high
+  - understanding: high
+----- SIGN CREV PROOF -----
+PXEjwV8PCI16FN1TW5G6thrQhkbmn_Zbw4pWYNB6WNQuUysBLSPIpxoftuGOoBwj6uRoe-Ty1ZFUg9dAmV9kDg
+----- END CREV PROOF -----
+
