@@ -7492,3 +7492,128 @@ comment: |-
 uxMB4HXyL0dVOJ9PgNVMnpKbx6z0TlEEa64ZQD0UPvUUu12jWkvZ6rq2D9k8_MYLOh7RhBI49zZW7A8wmsOrBw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T16:28:02+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: lockable
+  version: 0.1.1
+  digest: KH2q-9DK0WnG28-HKDGgO1w896VRhBYiYfRXXwCjNds
+review:
+  thoroughness: low
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: lockable 0.1.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lockable-0.1.1
+  - Upstream repository: https://github.com/smessmer/lockable
+  - Upstream commit verified: 814e2ea130721ee4875c85ca8a7f93b080938684
+  - Upstream tag for version: 0.1.1
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to provide thread-safe HashMap, LruCache, and LockPool data structures
+  where individual entries can be locked/unlocked by key, useful for synchronizing access
+  to an underlying key-value store or building cache data structures on top of one.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/smessmer/lockable at commit
+  814e2ea130721ee4875c85ca8a7f93b080938684, which is the commit tagged as `0.1.1`.
+  `diff -r --brief` (excluding expected files) produced zero differences. All files
+  are bit-for-bit identical between the crates.io tarball and the upstream repository
+  at the verified commit.
+  
+  ## Code review findings
+  
+  Thoroughness level: low (crate has ~4800 non-test Rust LoC, in the 1500-10000 range).
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: No custom build script. Positive.
+  - **Cargo.toml dependencies**: `futures`, `lru` (optional), `tokio` (sync, time),
+    `derive_more` (display, error), `itertools`. All are consistent with the crate's
+    stated purpose (async concurrency data structures). No suspicious dependencies.
+  - **proc-macro**: Not a proc-macro crate.
+  - **unsafe**: `#![forbid(unsafe_code)]` declared in lib.rs (line 107). Grep for `unsafe`
+    confirms only that `forbid` directive exists. No unsafe code whatsoever. Positive.
+  - **FFI surface**: None.
+  
+  ### Per-file read status
+  
+  - `src/lib.rs` (134 lines) - **read in full**. Module declarations, re-exports, `forbid(unsafe_code)`, `deny(missing_docs)`.
+  - `src/guard.rs` (413 lines) - **read in full**. RAII guard struct with key/value access, insert/remove/try_insert/value_or_insert_with operations. Drop impl calls `_unlock`. Clean, well-documented with doc-tests.
+  - `src/limit.rs` (301 lines) - **read in full**. `AsyncLimit` and `SyncLimit` enums with `NoLimit` and `SoftLimit` variants. Eviction callback pattern is well-documented, including infinite loop warning.
+  - `src/lockable_map_impl.rs` (766 lines) - **read in full**. Core implementation. Two-tier locking: `std::sync::Mutex` for the map, `tokio::sync::Mutex` per entry. Well-documented invariants (2A, 2B, 2C) for Arc reference counting correctness. The `_unlock` method and cleanup logic follow the invariants carefully. `EntriesGuard` wrapper enforces invariants in debug/test mode.
+  - `src/lockable_hash_map.rs` (874 lines) - **read in full (first 200 lines)**; **read partially (remaining lines, red-flag scan only)**. HashMap-backed implementation of the `MapLike` trait and `LockableHashMap` struct with all lock variants (blocking, async, try, owned).
+  - `src/lockable_lru_cache.rs` (1540 lines) - **not read** (LRU feature variant; similar pattern to hash map).
+  - `src/lockable_trait.rs` (78 lines) - **read in full**. Trait definition with associated types for guards and limits.
+  - `src/lockpool.rs` (411 lines) - **read in full**. Wrapper around `LockableHashMap<K, ()>` with simplified API. Several TODO comments for unimplemented owned variants.
+  - `src/map_like.rs` (32 lines) - **read in full**. Trait abstraction for different map backends.
+  - `src/utils/primary_arc.rs` (110 lines) - **read in full**. `PrimaryArc`/`ReplicaArc` pattern to control Arc cloning. Interesting design to enforce that only the primary can clone. One TODO note about `try_lock_owned` temporarily violating invariant via `Arc::clone` (line 77-78), but the note says call sites compensate.
+  - `src/utils/stream.rs` (99 lines) - **read in full**. `next_if_ready` stream extension using noop waker.
+  - `src/utils/time.rs` (50 lines) - **read in full**. Simple `TimeProvider` trait with real and mock implementations.
+  - `src/utils/never.rs` (48 lines) - **read in full**. `Never` type (empty enum) and `InfallibleUnwrap` trait.
+  - `src/utils/mod.rs` (8 lines) - **read in full**. Module declarations.
+  - `src/tests.rs` (2795 lines) - **not read** (test code).
+  - `benches/` - **not read** (benchmark code).
+  
+  ### Red-flag scan results
+  
+  - No `unsafe`, `transmute`, `from_raw`, raw pointers.
+  - No `std::process::Command`, shell invocation, env var access.
+  - No network libraries, `include_bytes!`, `include_str!`.
+  - No obfuscated strings, hex blobs, or suspicious constants.
+  - No `Drop` impls with side effects beyond the expected lock cleanup in `Guard::drop`.
+  - `unwrap`/`expect` usage in non-test code: present in `_entries()` (mutex poisoning),
+    `_guard()`, `_guard_mut()`, `Guard::drop`, and invariant assertions. All are on internal
+    invariants that should hold by construction, not on untrusted input. Acceptable.
+  
+  ### Architecture summary
+  
+  The crate uses a two-tier locking scheme: a single `std::sync::Mutex` protects the
+  overall map structure, while each entry has its own `tokio::sync::Mutex` for per-key
+  locking across async boundaries. The `PrimaryArc`/`ReplicaArc` pattern restricts
+  Arc cloning to enforce reference counting invariants. A `SoftLimit` eviction mechanism
+  allows bounded caches with user-controlled eviction callbacks. The design is well-thought-out
+  with carefully documented invariants.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate does exactly what it claims: provides lockable HashMap, LRU cache, and lock pool
+  data structures. No network access, filesystem access, process spawning, or env var reading.
+  Dependencies are justified by the async concurrency use case.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `src/lockable_lru_cache.rs` (1540 lines) was not read; it follows the same pattern as
+    the hash map implementation but with LRU ordering. At `low` thoroughness this is acceptable.
+  - `src/tests.rs` and `benches/` were not read.
+  - The TODO at `primary_arc.rs:77` about `try_lock_owned` temporarily violating the invariant
+    via `Arc::clone` deserves deeper analysis at `medium` thoroughness but is noted by the author
+    as currently safe due to call-site cleanup.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: low
+  - understanding: medium
+----- SIGN CREV PROOF -----
+GjQERgAgW93lDpqOGXPb9pp5GsHsDEATSNDdogSgIl3gtksZu4q1yDWPoWA5xljng7mZiUCKYdon8-0umcVQAw
+----- END CREV PROOF -----
+
