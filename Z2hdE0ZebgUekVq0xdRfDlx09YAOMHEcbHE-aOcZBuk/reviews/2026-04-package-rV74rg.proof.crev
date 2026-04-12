@@ -2342,3 +2342,59 @@ comment: |-
 ptBmzWYffFt3IZs_epWthq5Ta5YOjJUFweVW-l7O8XCiMAMBMST3Smsc0CzAxAliIzarUtyUliI_WzpQf2qaDQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-11T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: saturating-time
+  version: 0.3.0
+  digest: LJT2KklbJGtF6TKVRFeRs1BJGHEkmPHXSEuNuZmQGxI
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  Review: saturating-time 0.3.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/saturating-time-0.3.0
+  - Upstream repository: https://codeberg.org/cve/saturating-time
+  - Upstream commit verified: e51a91f74a5a0872c1d977be9c58061af524a5b4
+  - Upstream tag for version: v0.3.0
+  - Verification outcome: pass
+  
+  External verification:
+  All source files in the published crate match the upstream repository at tag v0.3.0 exactly.
+  Files compared: src/lib.rs, src/internal.rs, LICENSE-APACHE, LICENSE-MIT, README.md, Cargo.lock.
+  The only differences are the expected cargo-added files: Cargo.toml (normalized), Cargo.toml.orig,
+  .cargo_vcs_info.json, .cargo-ok. No unexpected files found.
+  
+  Code review findings:
+  The crate provides a SaturatingTime trait adding saturating arithmetic (saturating_add,
+  saturating_sub, saturating_duration_since) and min/max value discovery for std::time::SystemTime
+  and std::time::Instant. Zero dependencies. No build.rs. No unsafe code (forbid(unsafe_code)
+  enforced). No FFI, no network calls, no filesystem access, no process spawning, no env vars.
+  
+  src/lib.rs (read in full, 259 lines): Defines the public sealed SaturatingTime trait with
+  default implementations that fall back to max/min/zero on overflow. Comprehensive tests.
+  
+  src/internal.rs (read in full, 257 lines): Sealed trait implementation. Min/max values computed
+  lazily via LazyLock using a binary-search algorithm (starts at 10^18s, halves on failure, terminates
+  at 1ns). Clean and correct. Platform-specific tests verify expected Unix values.
+  
+  Minor notes: unreachable!() in Instant::checked_duration_since is safe due to sealed trait
+  override pattern. Instant::anchor() uses now() which is inherent to Instant's design.
+  
+  No existing crev reviews found. All source files read in full. No issues found.
+----- SIGN CREV PROOF -----
+-RXkan68n_vl0BnDKdygNfNegaXGcXF9lpiY7LVpsukI1fHPKK-DT0Iey8eUXKkbno_qMsK9kjwVPZrQp2cAAw
+----- END CREV PROOF -----
+
