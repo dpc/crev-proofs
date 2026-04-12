@@ -5722,3 +5722,113 @@ comment: |-
 3VNDiFmYjE-3oDCYbgotQHTiiaPCKp3htAQJUcotVuL-9iFPqBOgli01k51aqgTNzjZ1GwQYnMUv80Qrf2qQCg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T08:20:36+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: once_cell_polyfill
+  version: 1.70.1
+  digest: 8707Xdz2ZplxdqCgc5wKvOrzl7tYEAUyH1K83DVw-lE
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: once_cell_polyfill 1.70.1
+  
+  ## Summary
+  
+  A trivial polyfill crate that re-exports `std::sync::OnceLock` behind a
+  newtype wrapper `once_cell_polyfill::sync::OnceLock`. The purpose is to
+  provide a stable API matching the `once_cell` crate conventions while
+  delegating entirely to the standard library's `OnceLock` (stabilized in
+  Rust 1.70.0). The MSRV is set to 1.70.0, which is the exact version where
+  `std::sync::OnceLock` was stabilized.
+  
+  ## Crate Metadata
+  
+  - **Version**: 1.70.1
+  - **License**: MIT OR Apache-2.0
+  - **Repository**: https://github.com/polyfill-rs/once_cell_polyfill
+  - **MSRV**: 1.70.0
+  - **Dependencies**: None (zero dependencies)
+  - **Features**: None (default = [])
+  - **Build script**: None (build = false in normalized Cargo.toml)
+  
+  ## Code Analysis
+  
+  The crate consists of two source files totaling ~42 lines of Rust:
+  
+  ### src/lib.rs (10 lines)
+  
+  - Module-level doc comment
+  - `docsrs` cfg attribute for docs.rs builds
+  - Clippy lints for print_stderr and print_stdout
+  - Re-exports `pub mod sync`
+  - A `ReadmeDoctests` struct gated behind `#[cfg(doctest)]` for testing README examples
+  
+  ### src/sync/mod.rs (42 lines)
+  
+  - Defines `OnceLock<T>` as a newtype wrapper around `std::sync::OnceLock<T>`
+  - Derives: Debug, Clone, Default, Eq, PartialEq
+  - Delegates all methods directly to the inner `std::sync::OnceLock`:
+    - `new()`, `get()`, `get_mut()`, `set()`, `get_or_init()`, `into_inner()`, `take()`
+  - Implements `From<T>` for `OnceLock<T>`
+  
+  ## Security Assessment
+  
+  - **No unsafe code**: Confirmed via search, no `unsafe` blocks anywhere.
+  - **No dependencies**: Zero external crate dependencies.
+  - **No build script**: Confirmed.
+  - **No network access, process spawning, env var reads, or file I/O**.
+  - **No obfuscated code**: Everything is straightforward delegation.
+  - **No proc macros or code generation**.
+  
+  ## Source Verification
+  
+  - VCS commit `d1eaa840496cd47e25737e870712a0d60982c221` matches the
+    upstream repository at https://github.com/polyfill-rs/once_cell_polyfill.
+  - The commit message is "chore: Release once_cell_polyfill version 1.70.1".
+  - All source files (src/lib.rs, src/sync/mod.rs, README.md, LICENSE-*)
+    match exactly between the crate and the upstream checkout.
+  - `Cargo.toml.orig` is identical to the upstream `Cargo.toml`.
+  - The only differences are expected: config/CI files in upstream not included
+    in the published crate (.github/, .clippy.toml, etc.), and Cargo.toml
+    normalization artifacts (.cargo_vcs_info.json, .cargo-ok, Cargo.toml.orig).
+  
+  ## Provenance
+  
+  The project was originally created by Ed Page (epage), a well-known Rust
+  ecosystem maintainer (clap, toml_edit, etc.), and later moved to the
+  `polyfill-rs` GitHub organization. All commits are from epage or
+  well-known contributors.
+  
+  ## Observations
+  
+  - The crate is essentially a no-op wrapper: it adds zero functionality
+    beyond what `std::sync::OnceLock` provides. If your MSRV is >= 1.70.0,
+    you could use `std::sync::OnceLock` directly.
+  - The version number (1.70.1) appears to encode the MSRV (1.70) rather
+    than following semver in the traditional sense. There is also a 1.56.x
+    branch for older MSRVs.
+  - The `OnceLock` wrapper does NOT expose `get_or_try_init` which was
+    stabilized later (1.82.0), which is consistent with the polyfill goal.
+  
+  ## Rating
+  
+  - **Thoroughness**: high (read every line of code, verified against upstream)
+  - **Understanding**: high (trivial crate, fully understood)
+  - **Rating**: positive (safe, no concerns, does what it says)
+----- SIGN CREV PROOF -----
+tKXUhrJ6YHz_xQ8_0Y30AYkojW7Ya26DjJgd6StEQvyNV2lpcJu_OZS4MDhlHxhoJYfCdnm0MVdSPraNoEvwCQ
+----- END CREV PROOF -----
+
