@@ -5406,3 +5406,150 @@ comment: |-
 mpcgDhCDPeR7fU3_925WxOvpPMSEBdXC_CM7g83-atXqE27sJgiDB27Iwsl6OL-KQj5nDBdUEz5l1p5kWf6BBA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T08:14:40.475167806+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: fluid-let
+  version: 1.0.0
+  digest: kecTDJ4jAsMjpNtky_Zse-TZrzI0YwSnwzPlNHQc9w8
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: fluid-let 1.0.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fluid-let-1.0.0
+  - Upstream repository: https://github.com/ilammy/fluid-let
+  - Upstream commit verified: 50b39251b45285275eb4e923bc4f22a5e464baa8
+  - Upstream tag for version: v1.0.0
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/ilammy/fluid-let at commit
+  `50b39251b45285275eb4e923bc4f22a5e464baa8` tagged `v1.0.0`. The tag resolves to
+  exactly this commit. The only difference between the published crate and the
+  upstream repo is that `benches/` exists only in the upstream repo (excluded from
+  the published tarball, expected). `Cargo.toml.orig` is identical to the upstream
+  `Cargo.toml`. All other files are bit-for-bit identical.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — The crate is a single 741-line file (much of it
+  is documentation/doctests/tests). Actual implementation logic is roughly 120
+  lines, well within careful end-to-end reading.
+  
+  **Claims baseline:** The crate claims to provide dynamically scoped (fluid)
+  variables, inspired by Lisp. Variables are thread-local, hold optional references,
+  and restore previous values when scope ends. It has zero dependencies and one
+  optional feature (`static-init`).
+  
+  **No `build.rs`** — positive.
+  
+  **No proc-macro** — positive.
+  
+  **Dependencies:** None. Only `std` is used. Positive.
+  
+  **No FFI** — positive.
+  
+  **No network, filesystem, process, or env access** — positive. The crate does
+  exactly what it claims and nothing more.
+  
+  ### File-by-file
+  
+  - **src/lib.rs** — **read in full**.
+  
+  ### Unsafe analysis
+  
+  The crate contains 6 `unsafe` blocks in non-test code (plus 2 in tests):
+  
+  1. **`fluid_set!` macro (line 435):** Calls `set_guard`, which is documented as
+     `unsafe`. Safety relies on the macro binding the guard to a local `_guard_`
+     variable that cannot be moved or dropped early — it drops at end of scope in
+     reverse declaration order, maintaining the LIFO invariant. The comment in the
+     macro explains this. Sound as used.
+  
+  2. **`DynamicVariable::get` (line 476):** Calls `DynamicCell::get()` which
+     dereferences a raw pointer stored in UnsafeCell. Safety: the reference
+     returned by `get()` is bounded to the closure's lifetime (`FnOnce`), which
+     is shorter than the `set()` guard's lifetime in any calling frame. The value
+     cannot outlive the guard that set it. Sound.
+  
+  3. **`DynamicVariable::set` (line 485):** Calls `DynamicCell::set()` which
+     swaps the raw pointer. The guard is bound to `_guard_` inside `with()`,
+     dropped after `f()` returns and before `with()` exits. LIFO order maintained.
+     Sound.
+  
+  4. **`DynamicVariable::set_guard` (line 499-507):** Uses `mem::transmute` to
+     extend the lifetime of a `&DynamicCell<T>` reference obtained from
+     `LocalKey::with`. The transmute erases the closure-bounded lifetime to
+     match the caller's lifetime. This is the most delicate unsafe block. It is
+     sound *only if* the caller ensures the returned guard is dropped before the
+     cell's thread-local storage is destroyed, and before the value reference
+     becomes invalid. The `fluid_set!` macro ensures this by binding both the
+     value and the guard as local variables in the same scope (value before guard),
+     so the guard drops first. Direct callers of `set_guard` must uphold this
+     manually — hence the `unsafe` on the function.
+  
+  5. **`DynamicCell::get` (line 546-548):** Dereferences `UnsafeCell` pointer and
+     the raw pointer inside `Option<*const T>`. Sound when called within a
+     `LocalKey::with` closure (single-threaded access guaranteed by thread-local)
+     and when the pointed-to value is still alive (guaranteed by guard scoping).
+  
+  6. **`DynamicCell::set` (line 559-564):** Mutates `UnsafeCell` contents via raw
+     pointer. Sound for the same thread-local single-access reason. Returns a
+     guard that restores old value on drop.
+  
+  7. **`DynamicCellGuard::drop` (line 568-576):** Restores old value. Sound when
+     guards are dropped in LIFO order (the API ensures this for `set()`; callers
+     of `set_guard` must ensure it manually).
+  
+  **Summary of unsafe:** All unsafe blocks revolve around managing raw pointers
+  inside `UnsafeCell` for thread-local storage, with lifetime extension via
+  transmute in one case. The safety invariants are well-documented and the public
+  API (`set` + closure, `get` + closure) enforces them structurally. The only
+  escape hatch is `set_guard` which is `#[doc(hidden)]` and `unsafe`. The
+  approach is standard for this kind of scoped-value pattern. No soundness
+  issues found.
+  
+  ### Other observations
+  
+  - The `fluid_let!` macro is duplicated for `cfg(feature = "static-init")` vs
+    `cfg(not(...))` — the non-static-init version emits `compile_error!` for the
+    initializer syntax. This is a reasonable workaround for macro limitations
+    with `#[cfg]`.
+  - Test coverage is good: basic set/get, nesting, thread locality, convenience
+    accessors, and a demonstration of unsafe misuse (out-of-order guard drops).
+  - No panics in non-test code. No `unwrap()` or `expect()` in library code.
+  - No conditional compilation beyond the `static-init` feature gate.
+  - No `Drop` side effects beyond restoring the previous pointer value.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `benches/` directory in upstream was not reviewed (not included in published crate).
+  - Tests were read for context but not audited for correctness.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+D5CBKPkwuw2m2rmHJ7ZtMWriEU_45MGmuU4L86JWnO72-88D0329wImd1YB9tHQbMqN6zoVctsU3y0AP_38MDQ
+----- END CREV PROOF -----
+
