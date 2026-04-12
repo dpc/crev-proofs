@@ -6173,3 +6173,133 @@ comment: |-
 x3m4WBXrjKi3jSd1qWOIitnt0I3ywC7CElHnQ41k7hJXA96YALMkJbXdNzftB86BULwH4R6WRgBPQmIbDarQDQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: sync_wrapper
+  version: 0.1.2
+  digest: FoHmOFHru9vf4TdEDJwbxYgvuBS6XXWzZcnk4V_V3oo
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: sync_wrapper 0.1.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sync_wrapper-0.1.2
+  - Upstream repository: https://github.com/Actyx/sync_wrapper
+  - Upstream commit verified: 7ebf2994396d88738067a09cf354cbb0d6ac1084
+  - Upstream tag for version: v0.1.2
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/Actyx/sync_wrapper at commit
+  `7ebf2994396d88738067a09cf354cbb0d6ac1084` tagged `v0.1.2`. `.cargo_vcs_info.json`
+  sha matches the tag. `Cargo.toml.orig` is bit-for-bit identical to upstream
+  `Cargo.toml`. All other files (src/lib.rs, README.md, LICENSE) are identical.
+  No unexpected files in either direction.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** (80 LoC single-file crate, read end-to-end).
+  
+  ### Claims baseline
+  
+  The crate claims to be "a mutual exclusion primitive that relies on static type
+  information only" — a wrapper that makes any `T` into `Sync` by restricting
+  access to `&mut` only. It also provides `SyncFuture` and `SyncStream` convenience
+  wrappers. It is `#![no_std]`.
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**, 248 lines, the only Rust source file.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present (positive).
+  - **Proc macros**: None (positive).
+  - **FFI surface**: None (positive).
+  - **Dependencies**: `futures-core` (optional, behind `futures` feature) — appropriate
+    for a crate that wraps `Stream`. No surprising deps. Dev-deps are `pin-project-lite`
+    and `futures`, both reasonable for testing.
+  
+  ### Unsafe analysis
+  
+  Four `unsafe` usages total:
+  
+  1. **Line 139** — `get_pin_mut`: `unsafe { Pin::map_unchecked_mut(self, |this| &mut this.0) }`.
+     Sound: `SyncWrapper` is `#[repr(transparent)]`, so `Pin<&mut SyncWrapper<T>>` has
+     identical layout to `Pin<&mut T>`. The projection preserves pinning guarantees because
+     `SyncWrapper` has no `Drop` impl that moves `T` and no `Unpin` impl that would allow
+     the caller to move the inner value out of a pinned wrapper.
+  
+  2. **Line 167** — `unsafe impl<T> Sync for SyncWrapper<T> {}`.
+     This is the core safety claim. Sound: the only way to access the inner `T` is through
+     `get_mut(&mut self)`, `get_pin_mut(self: Pin<&mut Self>)`, or `into_inner(self)` — all
+     of which require exclusive access or ownership. Since `&SyncWrapper<T>` provides no
+     path to `&T` or `&mut T`, sharing the wrapper across threads cannot create data races
+     regardless of `T`'s `Sync` status. The `Debug` impl does not access `T` either (just
+     prints "SyncWrapper").
+  
+  3. **Line 211** — `SyncFuture::poll`: `unsafe { self.map_unchecked_mut(|x| x.inner.get_mut()) }`.
+     Sound: projects `Pin<&mut SyncFuture<F>>` → `Pin<&mut F>`. `SyncFuture` is a newtype
+     around `SyncWrapper<F>` with no `Unpin` impl and no `Drop` impl. The `get_mut()` call
+     on `SyncWrapper` returns `&mut F`, and wrapping it back in `Pin` via `map_unchecked_mut`
+     preserves the pin invariant. However, note this takes a slightly different approach
+     than `get_pin_mut` (which uses `Pin::map_unchecked_mut` on the SyncWrapper directly) —
+     it goes through `get_mut` first. Both are sound but the inconsistency is minor.
+  
+  4. **Line 244** — `SyncStream::poll_next`: identical pattern to #3, for `Stream`. Same
+     soundness argument applies.
+  
+  ### Additional observations
+  
+  - `#[repr(transparent)]` on `SyncWrapper` is essential for the pin projection soundness
+    in `get_pin_mut`. Good that it's present.
+  - `Default`, `From<T>`, and `Debug` impls are all straightforward and correct.
+  - `Debug` deliberately does not expose `T`'s debug representation (prints "SyncWrapper"),
+    which is the right choice since `&self` doesn't guarantee exclusive access.
+  - The crate is `#![no_std]`, consistent with its minimal footprint.
+  - No `unwrap`, `expect`, `panic!`, or error handling concerns — the API is infallible.
+  - No conditional compilation beyond the `futures` feature gate.
+  - No obfuscated strings, binary blobs, or suspicious patterns.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims: mutual exclusion via static types → confirmed, access requires `&mut` or ownership.
+  - Claims: `no_std` → confirmed.
+  - Claims: inspired by rust-internals discussion on Sync across await → consistent with
+    the `SyncFuture` wrapper.
+  - No unjustified capabilities: no I/O, no network, no env vars, no processes, no FFI.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  - Tests and doctests were not examined (not required at medium thoroughness, and tests
+    cannot affect safety of the published crate).
+  - Did not verify the soundness argument against formal memory models (would require
+    `high` thoroughness).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+JZw-5igyEGWbPkctFvV5DYMzHmsSa1EN2dAki5Nb9qeMD2sapYr9rNJok2NvMvYcUlvpQdp9PkDxSd-0D6kHDw
+----- END CREV PROOF -----
+
