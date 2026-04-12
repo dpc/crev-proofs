@@ -3792,3 +3792,80 @@ comment: |-
 1EyoFHkUbk1sn6urqsaeZMs0sNyhh1m88VcnViaEN-1KZK9lKZf29FleZpYVyS4bYpX77MWlCCrSBW7lCzIcDw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T07:08:29+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: derive_builder_macro_fork_arti
+  version: 0.11.2
+  digest: HPi6H6-_F1peGoDmbPYACDU1z-La_Tu8LvUwplmwsMc
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: derive_builder_macro_fork_arti 0.11.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive_builder_macro_fork_arti-0.11.2
+  - Upstream repository: https://github.com/ijackson/rust-derive-builder
+  - Upstream commit verified: c7415eb2627f79b4b8c358881e851b868c1f316e
+  - Upstream tag for version: n/a (commit from .cargo_vcs_info.json, merge commit "Merge branch 'field-builder'" dated 2022-05-06)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/ijackson/rust-derive-builder at commit `c7415eb2627f79b4b8c358881e851b868c1f316e` (path_in_vcs: `derive_builder_macro`). `src/lib.rs` is bit-for-bit identical. `Cargo.toml.orig` matches upstream `Cargo.toml` exactly — no differences at all.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — crate is 27 lines of Rust, well under 300 LoC threshold.
+  
+  **Claims baseline:** This crate is a proc-macro shim for `derive_builder_core_fork_arti`. It claims to provide a `#[derive(Builder)]` macro for automatically implementing the builder pattern. This is a fork of `derive_builder_macro` maintained by Ian Jackson (Tor Project) for the Arti project.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: Two dependencies — `syn 1.0.91` (with `full` and `extra-traits` features) and `derive_builder_core_fork_arti =0.11.2`. Both are justified for a proc-macro derive crate. No unexpected dependencies.
+  - **proc-macro**: Yes, `proc-macro = true`. The single `#[proc_macro_derive]` function is 3 lines: it parses the input with `syn`, delegates to `derive_builder_core::builder_for_struct`, and returns the result. No suspicious logic.
+  - **unsafe**: None present. Positive.
+  - **FFI surface**: None.
+  
+  ### File map
+  
+  - `src/lib.rs` (27 lines): **read in full**. The entire crate is a thin proc-macro entry point. It declares a `Builder` derive macro with five custom attributes (`builder`, `builder_field_attr`, `builder_impl_attr`, `builder_setter_attr`, `builder_struct_attr`), parses the input via `syn::DeriveInput`, and delegates all logic to `derive_builder_core::builder_for_struct`. No red flags. No network calls, no filesystem access, no env var reads, no obfuscated strings, no conditional compilation tricks.
+  
+  ### Red-flag scan
+  
+  No hits for: unsafe, transmute, Command::new, std::env::var, reqwest, include_bytes!, base64 literals, hex blobs, obfuscated strings, unwrap on untrusted input, suspicious Drop impls.
+  
+  ### Architecture summary
+  
+  This is a minimal proc-macro facade. All actual builder generation logic lives in `derive_builder_core_fork_arti`. This crate exists solely because proc-macro crates must be separate crates in Rust. The code does exactly what it claims and nothing more.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The actual builder logic lives in `derive_builder_core_fork_arti` — that crate would need its own review to fully assess the derive macro's behavior.
+  - No tests directory in this crate (tests likely live in the workspace root or in `derive_builder_core`).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+goEQx0n_n6x2jatE7lcjJ1m3evxlO8jJ0uY8UKXvViphYXlQNvJGoZYapL-DwZ4rkFb0Gu2PJtYDWnJVXIjiDg
+----- END CREV PROOF -----
+
