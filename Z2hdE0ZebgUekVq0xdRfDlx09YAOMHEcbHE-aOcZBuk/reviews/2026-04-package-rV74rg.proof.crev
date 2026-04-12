@@ -4385,3 +4385,116 @@ comment: |-
 l8mZDCnSR157TK2iathfK7uXh15gLrUiFQXUmx5kGGLRfE6wyPyV_CqNoZ2dVHw2qNRTQpWSiDw6eEwkNWxMBQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T07:29:54+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: slotmap-careful
+  version: 0.5.1
+  digest: uZhxV12ttBv49IVZGk8E2KXPqiWuHxDqS8W_DdxSyMM
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: slotmap-careful 0.5.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/slotmap-careful-0.5.1
+  - Upstream repository: https://gitlab.torproject.org/tpo/core/arti.git/
+  - Upstream commit verified: n/a (DNS resolution unavailable in review environment)
+  - Upstream tag for version: n/a
+  - Verification outcome: partial (could not clone upstream; .cargo_vcs_info.json present with sha1 6c79dfb9a31e2fdde6230da4edcb71cc082ca7d9, path_in_vcs: crates/slotmap-careful)
+  
+  ## Claims baseline
+  
+  The crate claims to be a wrapper around `slotmap::SlotMap` (and DenseSlotMap, HopSlotMap) that prevents key reuse by detecting when a slot's version counter is about to wrap around (at ~2^31 reuses) and marking such slots as permanently unusable rather than allowing the version to roll over and produce duplicate keys. This addresses a security concern in programs that rely on slotmap keys being permanently unique.
+  
+  ## External verification
+  
+  Could not perform full external verification due to DNS resolution failure for gitlab.torproject.org in the review environment. The `.cargo_vcs_info.json` file is present and records commit sha1 `6c79dfb9a31e2fdde6230da4edcb71cc082ca7d9` with `path_in_vcs: "crates/slotmap-careful"`. The crate is part of the Arti (Tor in Rust) project, authored by The Tor Project / Nick Mathewson. The repository URL in Cargo.toml.orig matches the well-known Arti project URL.
+  
+  ## Code review findings
+  
+  Chosen thoroughness: medium (834 LoC, two source files, small enough for careful end-to-end read)
+  
+  ### File map
+  
+  - `src/lib.rs` (991 lines) — **read in full**
+  - `src/key_data.rs` (282 lines) — **read in full**
+  - `Cargo.toml.orig` — **read in full**
+  - `README.md` — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: Zero `unsafe` blocks anywhere in the crate. Positive.
+  - **FFI surface**: None. Positive.
+  - **Dependencies**: `paste` (macro utility for identifier concatenation), `serde` (serialization, used to extract key internals), `slotmap` (the wrapped crate), `thiserror` (error derive), `void` (uninhabited type). All dependencies are justified by the crate's purpose. No network, filesystem, or process-spawning dependencies. Positive.
+  
+  ### Architecture summary
+  
+  The crate wraps `slotmap::{SlotMap, DenseSlotMap, HopSlotMap}` using a macro (`define_implementation!`) that generates a wrapper struct for each variant. Each wrapper stores entries as `Entry<V>` (either `Present(V)` or `Unusable`) in the underlying slotmap. When removing an entry whose key version has reached `SATURATE_AT_VERSION` (0x7fff_fffe), instead of actually removing it (which would increment the version and risk overflow), the entry is replaced with `Entry::Unusable` and a counter `n_unusable` is incremented. The key version is extracted via a clever serde-based hack in `key_data.rs` — a custom `Serializer` impl that captures the `version` and `idx` fields from slotmap's `KeyData` serialization format. A runtime validation check at map construction time spot-checks that slotmap's key encoding matches expectations.
+  
+  ### Claims vs reality reconciliation
+  
+  - Crate claims to prevent key reuse by saturating version counters: **verified**. The `remove()` method checks `key_version_is_maximal()` and replaces with `Entry::Unusable` instead of removing. `retain()` and `clear()` follow the same pattern.
+  - Crate claims no I/O or network access: **verified**. No filesystem, network, process, or env var access anywhere.
+  - All capabilities exercised (serde serialization of key internals, atomic bool for validation caching) are justified by the crate's stated purpose.
+  
+  ### Detailed findings
+  
+  1. **Serde-based key extraction hack (key_data.rs)**: The entire `key_data` module implements custom `Serializer` traits to extract `version` and `idx` fields from `slotmap::KeyData` without relying on any public API for this. This is explicitly documented as fragile ("may fail in the future if slotmap changes its serde output") but is the only available approach since slotmap doesn't expose these internals. The approach is clever and well-documented. The code correctly handles the version LSB encoding (bit 0 = 1 for occupied slots).
+  
+  2. **Runtime validation**: Each map type runs a validation function on first construction that creates a temporary slotmap, inserts/removes keys, and verifies the version/index encoding matches expectations. Results are cached via `AtomicBool` with `Relaxed` ordering — this is correct since the validation is deterministic and idempotent; the worst case of a race is redundant validation.
+  
+  3. **`Entry::unwrap()` panic**: The `unwrap()` method on `Entry` can panic if called on `Unusable`, but it's only called in `remove()` after verifying `!key_version_is_maximal(key)`, and the crate's invariant guarantees `Unusable` entries only exist at maximal version. The invariant reasoning is sound and well-documented in comments.
+  
+  4. **`n_unusable` counter correctness in `retain()`**: The closure in `retain()` captures `self.n_unusable` from the outer scope while `self.base.retain()` borrows `self.base` — disjoint field borrows, correct.
+  
+  5. **`drain()` does not mark slots unusable**: The `drain()` method calls `self.base.drain()` which removes all entries including `Unusable` ones. After `drain()`, `n_unusable` is not reset to 0. This could cause `len()` to panic via `checked_sub` if `n_unusable` was nonzero before drain. Additionally, draining Unusable entries means their slots' version counters could increment past the safe limit on reuse. **This is a potential bug** — `drain()` is not tested in the test suite.
+  
+  6. **No `Serialize`/`Deserialize` for the wrapper types**: Documented as a limitation. Fine.
+  
+  7. **`void` dependency**: Listed in `[dependencies]` but never used in the source code. Dead weight but harmless.
+  
+  ### Red-flag scan results
+  
+  - `unsafe`: none
+  - `transmute`, `from_raw`, raw pointers: none
+  - `std::process::Command`: none
+  - `std::env::var`: none
+  - Network crates: none
+  - `include_bytes!`, `include_str!`: only `include_str!("../README.md")` for docs — benign
+  - Base64/hex blobs: none
+  - Obfuscated strings: none
+  - `unwrap`/`expect`/`panic!`: Used in validation functions and `Entry::unwrap()` with invariant guarantees. `expect("logic error")` in `len()`/`capacity()` could fire via the drain() issue.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - Could not verify source against upstream git repository due to DNS unavailability.
+  - The `drain()` + `n_unusable` interaction looks like it could panic. This should be verified by the user.
+  - The `void` dependency appears unused in 0.5.1 source.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+7SXilzDJ1j5TP4YBIn1YMkCn5UDanJsRFAHJScsWoj8TCQ-YaShWKS5DLUl6pDsd1g0OAGFIhvdenOUmSwmGDQ
+----- END CREV PROOF -----
+
