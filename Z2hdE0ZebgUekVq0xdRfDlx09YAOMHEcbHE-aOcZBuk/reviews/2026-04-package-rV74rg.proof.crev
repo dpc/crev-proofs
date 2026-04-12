@@ -3088,3 +3088,103 @@ comment: |-
 ljH_XH59zFJipcKRZOrMzjL5DdIE7QwQ9zM0Dkiet0pG-l2xzAjCCFwevcpAoftmcysUVauNly-9kFEgHpK6Cw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T06:21:23+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: visibility
+  version: 0.1.1
+  digest: _AaOwBP14E4Y24-h_dY9a4i1krcnkdfbC2DWCJO13wY
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: visibility 0.1.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/visibility-0.1.1
+  - Upstream repository: https://github.com/danielhenrymantilla/visibility.rs
+  - Upstream commit verified: 1caddb977e2e8e03c9f6f9672287e148498095ff
+  - Upstream tag for version: v0.1.1
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to provide an attribute proc-macro (`#[visibility::make(pub)]`) that overrides the visibility of annotated Rust items. Designed to be used with `#[cfg_attr(...)]` for conditional visibility changes. Licensed under Zlib OR MIT OR Apache-2.0. Claims to be `unsafe`-forbidden.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/danielhenrymantilla/visibility.rs at commit `1caddb977e2e8e03c9f6f9672287e148498095ff`, tagged `v0.1.1`. `.cargo_vcs_info.json` sha matches the tag exactly. `Cargo.toml.orig` is bit-for-bit identical to upstream `Cargo.toml`. All source files identical. The only difference is a `LICENSE` file in the tarball (placeholder pointing to individual license files) that doesn't exist in upstream — benign packaging artifact. The upstream repo has `.github/` and `downstream_crate/` directories not included in the tarball, which is expected (excluded from publish).
+  
+  ## Code review findings
+  
+  ### Thoroughness level: medium
+  
+  Justification: The crate has only 43 LoC of Rust in a single source file (`src/lib.rs`). Small enough to read carefully end-to-end.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **unsafe blocks**: None. Line 1 has `#![forbid(unsafe_code)]`. Positive.
+  - **Proc-macro**: Yes, this is a proc-macro crate (`proc-macro = true`). The single exported proc-macro function `make` is reviewed in detail below.
+  - **FFI surface**: None.
+  - **Dependencies**: `syn` (with `full` feature), `quote`, `proc-macro2`. All standard proc-macro dependencies, appropriate for the crate's purpose.
+  
+  ### File map
+  
+  - `src/lib.rs` (85 lines) — **read in full**
+  
+  ### Detailed analysis of `src/lib.rs`
+  
+  The file defines a single `#[proc_macro_attribute]` function `make`:
+  
+  1. Lines 1-2: `#![forbid(unsafe_code)]` and `#![allow(nonstandard_style, unused_imports)]` — good practice for safety, the allows are cosmetic.
+  2. Lines 3-5: Conditional `include_str!("../README.md")` for docs, gated on `feature = "nightly"`. The `include_str!` points to `../README.md` which is a legitimate documentation inclusion. Benign.
+  3. Lines 7-19: Standard proc-macro imports from `proc_macro`, `proc_macro2`, `quote`, and `syn`. Uses glob import from `syn` (`use ::syn::{*,`), which is slightly unusual but not concerning in a proc-macro context.
+  4. Lines 21-51: Documentation for the `make` function with usage examples.
+  5. Lines 52-84: The `make` function itself:
+     - Parses attributes as `syn::Visibility` and input as `syn::Item`.
+     - Pattern matches on the `Item` variant to extract the `vis` field.
+     - Supports: Const, Enum, ExternCrate, Fn, Mod, Static, Struct, Trait, TraitAlias, Type, Union, Use.
+     - Commented out: ForeignMod, Impl, Macro, Verbatim (these don't have a `vis` field or it doesn't make sense).
+     - Falls through to a compile error for unsupported items.
+     - Returns the modified item via `into_token_stream().into()`.
+  
+  The logic is straightforward: parse visibility from attribute args, parse the item, replace its visibility field, emit modified item. No state, no side effects, no I/O, no env access, no network calls.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims to override visibility of items: **confirmed**, that's exactly what the code does.
+  - Claims `unsafe`-forbidden: **confirmed** via `#![forbid(unsafe_code)]`.
+  - No capabilities exercised beyond proc-macro token manipulation. No unjustified capabilities.
+  
+  ### Test file: `tests/downstream.rs`
+  
+  - **Read in full.** Contains a single test that spawns `cargo test --doc` on a `downstream_crate` directory. This uses `std::process::Command` but only in test code, not in the proc-macro itself. The `downstream_crate` directory is not included in the published crate, so this test would not run for downstream consumers. Not a concern.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  None. The entire crate source was read in full. The crate is trivially small.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+ag_H8Isnb5YrIJDSvP7gCxydtDy2y2jtGhDymAXxx1So-9BBWBxuMdTTbEnw7GXLVL3nbmVEgzNRcPRhXXm8CA
+----- END CREV PROOF -----
+
