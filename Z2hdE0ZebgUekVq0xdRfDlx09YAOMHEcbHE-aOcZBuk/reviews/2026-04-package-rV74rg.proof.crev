@@ -4929,3 +4929,174 @@ comment: |-
 TghOHwYa7uCFWiWUZtfQ2HGmgYzR5NZhwkgzAkNPOYvifdtYB68FaVqnPlsL98nnkJ7uyKGcI1NfpBW5UfCUBg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T07:51:47+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: substring
+  version: 1.4.5
+  digest: pdWYdMk43P6QLFyr111CWKoSjKLCAEDWBbLLdwlvTV0
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: substring 1.4.5
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/substring-1.4.5
+  - Upstream repository: https://github.com/Anders429/substring
+  - Upstream commit verified: d111228777c05132ab6f8b6ddca6347165386175
+  - Upstream tag for version: n/a (no tags in repo, commit message "Prepare for 1.4.5 release.")
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/Anders429/substring at commit
+  `d111228777c05132ab6f8b6ddca6347165386175` (commit message: "Prepare for 1.4.5 release.").
+  The repo has no version tags, but the `.cargo_vcs_info.json` sha matches a commit with the
+  correct release message. Only difference is `.github/` directory excluded from the crate
+  (listed in `Cargo.toml` `exclude`). Manifests (`Cargo.toml.orig` vs upstream `Cargo.toml`)
+  are bit-for-bit identical. All source files are identical.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — 57 LoC of Rust (single file), small enough to read carefully
+  end-to-end.
+  
+  ### Claims baseline
+  
+  Crate claims to provide a `substring()` method on Rust string types that takes start and end
+  character indices and returns a string slice. Claims `no-std` support. Claims MSRV 1.0.0.
+  Claims O(n) complexity where n is byte length.
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**
+  - `build.rs` — **read in full**
+  - `Cargo.toml.orig` — **read in full**
+  - `README.md` — **read in full**
+  
+  ### build.rs analysis
+  
+  The build script uses `autocfg` (version 1.0.1) to emit a `rustc_1_6` cfg flag based on the
+  compiler version. This is used to conditionally enable `#![no_std]` on Rust >= 1.6 (when the
+  `no_std` attribute became available). The build script:
+  
+  - Does NOT perform any network calls
+  - Does NOT shell out to external commands (beyond what `autocfg` does internally — it probes
+    `rustc`)
+  - Does NOT write outside `OUT_DIR`
+  - Does NOT read sensitive paths
+  - Does NOT contain obfuscated strings or binary blobs
+  
+  Verdict: **benign**. Standard `autocfg` usage for MSRV compatibility.
+  
+  ### Dependency analysis
+  
+  Only dependency is `autocfg = "1.0.1"` as a build dependency. This is a widely-used,
+  well-known crate for detecting compiler features. No runtime dependencies at all. Appropriate
+  for the crate's stated purpose.
+  
+  ### Proc-macro check
+  
+  Not a proc-macro crate. No `proc-macro = true` in `Cargo.toml`.
+  
+  ### Unsafe analysis
+  
+  One `unsafe` block at `src/lib.rs:97-107`:
+  
+  ```rust
+  unsafe {
+      self.slice_unchecked(
+          indices.nth(start_index).map_or(str_len, &obtain_index),
+          indices
+              .nth(end_index - start_index - 1)
+              .map_or(str_len, &obtain_index),
+      )
+  }
+  ```
+  
+  Soundness argument: `slice_unchecked` requires that the byte indices are valid UTF-8 boundary
+  positions within the string. The indices come from `char_indices()`, which by definition yields
+  byte offsets that lie on UTF-8 sequence boundaries. When `nth()` returns `None` (index out of
+  bounds), `str_len` is used, which is also a valid boundary (end of string). The early return
+  for `end_index <= start_index` prevents underflow in `end_index - start_index - 1`.
+  
+  Note: `str::slice_unchecked` is deprecated (since Rust 1.29.0) in favor of
+  `str::get_unchecked` with a range. The `#![allow(deprecated)]` at the top suppresses the
+  warning. This is documented as intentional for MSRV 1.0.0 support. Not a safety issue, but
+  a code quality note.
+  
+  **Potential issue**: The function uses `#[deprecated]` `slice_unchecked` which takes two `usize`
+  arguments (begin, end). The semantics require `begin <= end`. Let's verify: when both
+  `start_index` and `end_index` are within bounds, the first `nth(start_index)` advances the
+  iterator, then `nth(end_index - start_index - 1)` advances further. Since `char_indices`
+  yields monotonically increasing byte offsets, the second index will always be >= the first.
+  When start is in bounds but end is out of bounds, we get `(some_index, str_len)` — valid since
+  `some_index <= str_len`. When both are out of bounds, we get `(str_len, str_len)` — which
+  yields an empty slice. All cases are sound.
+  
+  ### FFI surface
+  
+  No FFI, no `extern "C"`, no linked C libraries.
+  
+  ### Red-flag scan
+  
+  - `unsafe`: one block, analyzed above — sound
+  - `transmute`, `from_raw`, raw pointers: none
+  - `std::process::Command`, shell invocation: none
+  - `std::env::var`: none
+  - Network libraries: none
+  - `include_bytes!`, `include_str!`: none
+  - Base64/hex blobs: none
+  - Obfuscated strings: none
+  - Conditional compilation: `#[cfg(rustc_1_6)]` and `#[cfg(not(rustc_1_6))]` for no_std
+    support — benign and expected
+  - Custom `Drop` impls: none
+  - Custom serde deserializers: none
+  
+  ### Architecture summary
+  
+  Single-file crate. Defines a `Substring` trait with one method `substring(&self, start, end) -> &str`.
+  Implements it for `str` (which via `Deref` coercion covers `String` and other types). Uses
+  `char_indices()` iterator to find byte positions for character-based indexing, then
+  `slice_unchecked` to extract the slice without redundant bounds checks. Handles edge cases
+  (end <= start, out-of-bounds indices) gracefully by returning empty strings or clamping to
+  string length. Test module covers basic cases, out-of-bounds, reversed indices, equal indices,
+  and multi-byte characters.
+  
+  ### Claims vs reality reconciliation
+  
+  - "substring method for string types" — confirmed, trait implemented on `str`
+  - "no-std" — confirmed via conditional `#![cfg_attr(rustc_1_6, no_std)]`
+  - "O(n) complexity" — confirmed, iterates `char_indices` up to `end_index`
+  - No unexpected capabilities (no network, no filesystem, no env, no FFI, no extra deps)
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - Nothing skipped. All files read in full.
+  - The use of deprecated `slice_unchecked` is intentional for MSRV compatibility. The 2.0.0
+    branch on the upstream repo appears to modernize this.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+JfasmWrlpYLzkRejTroWgzqWIcxgt5040tO-etLDCPkOCjCnMW3BiiKCjeK7QPFWdapGsLyaqpoQfPIWpL1zDA
+----- END CREV PROOF -----
+
