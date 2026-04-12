@@ -4498,3 +4498,113 @@ comment: |-
 7SXilzDJ1j5TP4YBIn1YMkCn5UDanJsRFAHJScsWoj8TCQ-YaShWKS5DLUl6pDsd1g0OAGFIhvdenOUmSwmGDQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T07:33:50.519925246+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: uniffi_build
+  version: 0.29.5
+  digest: BzGryghYD1YJwzpZs40K3TNPa7ONbMLKFqCP1nIm7D0
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: uniffi_build 0.29.5
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uniffi_build-0.29.5
+  - Upstream repository: https://github.com/mozilla/uniffi-rs
+  - Upstream commit verified: 856f77b6fdf78fae45bc3c394499df60f8cc5851
+  - Upstream tag for version: v0.29.5
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/mozilla/uniffi-rs at commit
+  856f77b6fdf78fae45bc3c394499df60f8cc5851 tagged v0.29.5. The `.cargo_vcs_info.json`
+  sha and the version tag point to the same commit. `Cargo.toml.orig` is identical to
+  upstream `Cargo.toml`. `src/lib.rs` is bit-for-bit identical. The only difference is
+  the README.md file, which is expected since upstream references `../README.md` (the
+  workspace-level README) and cargo publish inlines it into the crate tarball.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — the crate is 49 lines of Rust (one file), well within
+  end-to-end careful reading.
+  
+  **Claims baseline:** The crate claims to be "build script helpers" for uniffi, a
+  multi-language bindings generator. It provides functions to generate Rust scaffolding
+  code from UDL files, intended to be called from a downstream crate's `build.rs`.
+  
+  ### File-by-file
+  
+  - **src/lib.rs** — **read in full**. 49 lines total including license header and doc
+    comments. Two public functions: `generate_scaffolding` and
+    `generate_scaffolding_for_crate`. Both follow the same pattern:
+    1. Print `cargo:rerun-if-changed` for the UDL file path.
+    2. Print `cargo:rerun-if-env-changed` for `UNIFFI_TESTS_DISABLE_EXTENSIONS`.
+    3. Read `$OUT_DIR` from environment.
+    4. Delegate to `uniffi_bindgen` for the actual code generation.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: `rg -n 'unsafe' src/` — zero hits. Positive.
+  - **FFI surface**: No `extern "C"`, no bindgen, no linked C libraries. Positive.
+  - **Dependencies**: `anyhow` (error handling), `camino` (UTF-8 paths), `uniffi_bindgen`
+    (the actual codegen engine). All three are justified by the crate's purpose. No
+    surprising or unrelated dependencies.
+  
+  ### Capability reconciliation
+  
+  - Reads `$OUT_DIR` env var — justified, standard build script pattern for writing
+    generated code.
+  - Reads `UNIFFI_TESTS_DISABLE_EXTENSIONS` (only to print `rerun-if-env-changed`) —
+    justified, documented in comments.
+  - Delegates file I/O to `uniffi_bindgen` — justified, that's the crate's entire
+    purpose.
+  - No network access, no process spawning, no filesystem access beyond what
+    `uniffi_bindgen` does internally.
+  
+  ### Red-flag scan results
+  
+  No hits for any red-flag patterns: no `unsafe`, no `transmute`, no `Command::new`,
+  no `reqwest`/`hyper`/`ureq`, no `include_bytes!`, no base64 literals, no obfuscated
+  strings, no panics on untrusted input.
+  
+  ### Architectural summary
+  
+  This is a thin wrapper around `uniffi_bindgen::generate_component_scaffolding[_for_crate]`.
+  It adds cargo build script integration (`rerun-if-changed` / `rerun-if-env-changed`
+  directives) and reads `$OUT_DIR` so callers don't have to. The actual complexity lives
+  entirely in the `uniffi_bindgen` dependency.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The actual code generation safety depends entirely on `uniffi_bindgen`, which is not
+    reviewed here. This crate is just a thin build-script adapter.
+  - No test files in this crate (tests live in other workspace crates).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+phn0lve5GgdIw1exwkr2I57JlKfE7hEXY-az2UIt1WrEXh-zv8KSzOUxb6fr8-Ps8xMiDvdt4_XFJUHJHepOBQ
+----- END CREV PROOF -----
+
