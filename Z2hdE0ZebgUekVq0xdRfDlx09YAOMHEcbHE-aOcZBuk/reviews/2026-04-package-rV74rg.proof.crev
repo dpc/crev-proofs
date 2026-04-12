@@ -8591,3 +8591,130 @@ comment: |-
 KfXlBN6Nodosg-0Jba89D8sRtq3uD4oAMWBnvPmqjYhk3yHb4PdSjrK-Ewvyecq_nwHq3PEn_TjlQNZRuildCQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: num-conv
+  version: 0.2.0
+  digest: UmFhta3zv2ncAArFcYJeI0DSdSi3RxLv3tbqqC1d-E0
+review:
+  thoroughness: high
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: num-conv 0.2.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-conv-0.2.0
+  - Upstream repository: https://github.com/jhpratt/num-conv
+  - Upstream commit verified: b43655fc31333d287f0c397ba18d08b658426d65
+  - Upstream tag for version: v0.2.0 (matches commit exactly)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The crate source was diffed against the upstream repository at the v0.2.0 tag:
+  
+  - `src/lib.rs`: identical to upstream
+  - `Cargo.toml.orig`: identical to upstream `Cargo.toml`
+  - `LICENSE-MIT`: identical to upstream
+  - `LICENSE-Apache`: identical to upstream
+  
+  The `include` directive in Cargo.toml restricts published files to `src/**/*` and `LICENSE-*`, which is correct. No extra files were injected into the crate beyond the standard Cargo-generated files (.cargo_vcs_info.json, Cargo.toml, Cargo.toml.orig, .cargo-ok, Cargo.lock).
+  
+  ## Code review findings
+  
+  ### Cargo.toml
+  
+  - **Dependencies**: Zero dependencies. No build dependencies.
+  - **Features**: No features declared.
+  - **Build script**: None (`build = false` in normalized Cargo.toml).
+  - **Proc macros**: None (library crate only).
+  - **Edition**: 2021, MSRV 1.57.0.
+  - **License**: MIT OR Apache-2.0 (standard dual license).
+  
+  ### src/lib.rs (204 lines, single file)
+  
+  **Claims baseline**: The crate claims to provide type-safe integer conversions without `as` casts, offering `Extend` (widening) and `Truncate` (narrowing) operations via turbofish syntax.
+  
+  **Structure**:
+  
+  1. `#![no_std]` - No standard library dependency. Good.
+  
+  2. `prelude` module (lines 15-17): Re-exports `Extend` and `Truncate` with `as _` anonymous imports. Clean pattern.
+  
+  3. `sealed` module (lines 19-40): Sealed trait pattern preventing external implementations.
+     - `Integer` marker trait implemented for all primitive integer types (u8-u128, usize, i8-i128, isize).
+     - `ExtendTargetSealed<T>` and `TruncateTargetSealed<T>` internal traits with single method each.
+  
+  4. Public traits (lines 42-119):
+     - `ExtendTarget<T>` and `TruncateTarget<T>` - public marker traits sealed by requiring the sealed supertraits.
+     - `Extend` trait with `extend::<T>()` method - blanket-implemented for all `Integer` types.
+     - `Truncate` trait with `truncate::<T>()` method - blanket-implemented for all `Integer` types.
+  
+  5. `impl_extend!` macro (lines 121-145):
+     - Generates sealed trait implementations for widening conversions.
+     - **Compile-time assertion** (const assert): Verifies `size_of::<from>() <= size_of::<to>()`. This is a sound safety check.
+     - Implementation body: `self as _` - uses Rust's built-in `as` cast. Since the compile-time assert guarantees the target is equal or larger, this is always a lossless widening cast. Sound.
+  
+  6. `impl_truncate!` macro (lines 147-171):
+     - Generates sealed trait implementations for narrowing conversions.
+     - **Compile-time assertion**: Verifies `size_of::<from>() >= size_of::<to>()`. Sound.
+     - Implementation body: `self as _` - truncation preserving least significant bits, which is the documented and expected behavior.
+  
+  7. Macro invocations (lines 173-203):
+     - `impl_extend!`: Maps each unsigned type to itself and all larger unsigned types. Same for signed types. Identity conversions (e.g., u8 => u8) are included.
+     - `impl_truncate!`: Maps each unsigned type to itself and all smaller unsigned types. Same for signed types. Identity conversions included.
+  
+  **Notable**: `usize` and `isize` are handled conservatively:
+  - `u8/u16` can extend to `usize` (correct on all platforms, usize is at least 16 bits).
+  - `u32` does NOT extend to `usize` (correct: usize could be 16-bit on some platforms).
+  - `usize` can only truncate to `usize` (conservative, correct).
+  - Same pattern for `isize`.
+  
+  ### Security-relevant checks
+  
+  - **No unsafe code**: Zero `unsafe` blocks.
+  - **No build.rs**: Confirmed absent.
+  - **No proc macros**: Pure declarative macros only.
+  - **No FFI**: No `extern` blocks or `#[link]` attributes.
+  - **No network access**: No I/O of any kind.
+  - **No filesystem access**: No I/O of any kind.
+  - **No environment variable access**: None.
+  - **No obfuscated code**: All code is straightforward and well-documented.
+  - **No suspicious patterns**: The `self as _` pattern is the only cast, and it is guarded by compile-time size assertions.
+  - **No panics or unwinding**: Pure computation only.
+  
+  ### Cross-signed conversions
+  
+  One subtlety: the crate does NOT allow cross-sign conversions (e.g., u8 to i16, or i8 to u8). This is a deliberate design choice - only same-signedness conversions are supported. This is safe and avoids potential sign-related surprises.
+  
+  ## Cross-check against existing reviews
+  
+  No existing cargo-crev reviews were found for num-conv in any version.
+  
+  ## Open questions / things skipped
+  
+  - The `.github/` directory in upstream was not reviewed (CI configuration, not shipped in crate).
+  - The `rustfmt.toml` and `.editorconfig` in upstream were not reviewed (not shipped in crate).
+  - The Cargo.lock in the crate is trivial (single entry, no dependencies).
+  - Did not verify behavior on 16-bit platforms (usize handling looks correct by inspection).
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: high
+  - understanding: high
+----- SIGN CREV PROOF -----
+Ca6mUM6FTFNij27nnOCTVj-nvshviFfzoLiBWV_FgDkVjRFgX-DUEM1yTkD7zgVkdZ7eVOxIWYdAFiKFjNxLDw
+----- END CREV PROOF -----
+
