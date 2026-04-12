@@ -6045,3 +6045,131 @@ comment: |-
 fSz2btzIqcC1LtoxPHOv1v09LZm32IK0AYMAgWLtaax86hZMsUTMEwatal1hc9_Jd0fUmI0BrouMK9cJG3AjCg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T08:32:48+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: nonany
+  version: 0.3.0
+  digest: ySCtkQpKDWHhXh6IVW7ohHAtc89s1JyR-yCgwkbW6Po
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: nonany 0.3.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/nonany-0.3.0
+  - Upstream repository: https://github.com/rick-de-water/nonany
+  - Upstream commit verified: e6d47f8f84dde1a87317630dc62e3804cbf4f1f3
+  - Upstream tag for version: v0.3.0
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` sha `e6d47f8f84dde1a87317630dc62e3804cbf4f1f3` matches the commit
+  tagged `v0.3.0` in upstream repo exactly. Diffed crate tarball against upstream at that commit.
+  All Rust source files (`src/lib.rs`, `src/tests.rs`) are bit-for-bit identical. `Cargo.toml.orig`
+  matches upstream `Cargo.toml` exactly (no workspace inheritance differences). `LICENSE-APACHE` and
+  `README.md` differ only in line endings (CRLF in tarball, LF in upstream) — this is a benign
+  artifact of the publish process / `.gitattributes` handling. No other files differ.
+  
+  ## Claims baseline
+  
+  The crate claims to provide integer types with customizable niche values in stable Rust, using
+  XOR with a compile-time constant to map the niche value to zero internally, leveraging
+  `core::num::NonZero*` for the niche optimization. It claims to be `#![no_std]` with no
+  dependencies. The README explains the XOR technique and its trade-offs (cheap XOR on load/store,
+  transmute gives XOR'd value not the original).
+  
+  ## Code review findings
+  
+  - **Thoroughness level: medium** — the crate is ~340 lines of non-test Rust code (mostly macro
+    expansions for 12 integer types), small enough to read end-to-end carefully.
+  - **`build.rs`**: none present (positive).
+  - **Proc macros**: none (positive).
+  - **Dependencies**: zero runtime dependencies. Only `impls = "1.0"` as dev-dependency (trait
+    checking utility for tests). This is consistent with the crate's stated purpose.
+  - **FFI surface**: none.
+  
+  ### Per-file map
+  
+  - `src/lib.rs` (342 lines): **read in full**
+  - `src/tests.rs` (~760 lines): **read in full (first 200 lines carefully, remainder scanned for red flags)**
+  
+  ### `unsafe` analysis
+  
+  There is exactly one `unsafe` function in the crate:
+  
+  **`src/lib.rs:45-47`** — `pub const unsafe fn new_unchecked(value: $int) -> Self`:
+  ```rust
+  pub const unsafe fn new_unchecked(value: $int) -> Self {
+      Self(core::num::$nonzero::new_unchecked(value ^ NICHE))
+  }
+  ```
+  **Soundness argument**: The caller's safety contract requires `value != NICHE`. If `value != NICHE`,
+  then `value ^ NICHE != 0` (since `a ^ b == 0` iff `a == b`). Therefore passing `value ^ NICHE` to
+  `NonZero*::new_unchecked` is sound — the argument is guaranteed non-zero. The safety requirement is
+  correctly documented in the doc comment. This is sound.
+  
+  ### Red-flag scan
+  
+  - No `transmute`, `from_raw`, raw pointer arithmetic.
+  - No `std::process::Command`, shell invocation.
+  - No `std::env::var` or env var access.
+  - No network libraries, TCP sockets.
+  - No `include_bytes!` / `include_str!` (except `include_str!("../README.md")` for crate-level docs — benign).
+  - No base64 literals, hex blobs, or obfuscated string construction.
+  - No `Drop` impls.
+  - No conditional compilation beyond `#[cfg(test)]` for the test module.
+  - No custom serde deserializers.
+  - `unwrap()` usage is only in test code.
+  
+  ### Architecture summary
+  
+  The crate is built around a single macro `nonany!` that generates a generic struct
+  `NonAny*<const NICHE: $int>` wrapping `core::num::NonZero*`. The XOR trick maps any non-NICHE
+  value to a non-zero value: `new()` stores `value ^ NICHE`, `get()` retrieves `inner ^ NICHE`.
+  This is correct because `a ^ b == 0` iff `a == b`. Three additional macros generate `TryFrom`
+  impls for conversions between integer types, between NonAny types, and from NonZero types. Type
+  aliases (`NonZero*`, `NonMin*`, `NonMax*`) provide convenient shorthand for common niche values.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims `#![no_std]` — confirmed, line 1 of `lib.rs`.
+  - Claims no dependencies — confirmed, `Cargo.toml.orig` has only `[dev-dependencies]`.
+  - Claims XOR technique for niche optimization — confirmed, `new()` at line 33 and `get()` at line 51.
+  - Claims `Option<NonAny*>` is same size as the integer — verified by compile-time assertions in tests.
+  - No capabilities exercised beyond pure computation on integers. No I/O, no allocation, no FFI.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The `FormatBuffer` in tests.rs uses `unwrap()` but this is test-only code.
+  - The `Write` impl for `FormatBuffer` has a bug: it doesn't update `self.offset` after a
+    successful write (line 33 copies bytes but offset is never advanced). This means multi-write
+    sequences would overwrite earlier content. However this is test-only code and doesn't affect
+    the crate's public API or safety. The tests still appear to work because each test writes to a
+    fresh buffer and the format macro writes all at once.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+x3m4WBXrjKi3jSd1qWOIitnt0I3ywC7CElHnQ41k7hJXA96YALMkJbXdNzftB86BULwH4R6WRgBPQmIbDarQDQ
+----- END CREV PROOF -----
+
