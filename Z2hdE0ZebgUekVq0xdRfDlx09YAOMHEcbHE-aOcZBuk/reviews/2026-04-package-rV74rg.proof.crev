@@ -2481,3 +2481,105 @@ comment: |-
 UneyLMU4g-O0o1EYFPKzrbK9ZAqlfKk7nvxk_CAR6e3ycevJF-mBDrRmlFZF5vH2ithjme5pCGUy1TSRQ5ZtAQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T05:52:06+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: oneshot-fused-workaround
+  version: 0.5.2
+  digest: 8-SJYZ7AnKN9Bp2OMWEdR_ry87Q6pz0CVBTBqowlXTc
+review:
+  thoroughness: medium
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: oneshot-fused-workaround 0.5.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oneshot-fused-workaround-0.5.2
+  - Upstream repository: https://gitlab.torproject.org/tpo/core/arti.git/
+  - Upstream commit verified: n/a (upstream host gitlab.torproject.org unreachable at review time)
+  - Upstream tag for version: n/a
+  - Verification outcome: partial (unable to clone upstream; `.cargo_vcs_info.json` present with sha1 `ea9fac019eb886e752652f0f49e9a320c9c98c51`, path_in_vcs `crates/oneshot-fused-workaround`)
+  
+  ## External verification
+  
+  Unable to clone the upstream repository at `https://gitlab.torproject.org/tpo/core/arti.git/` — DNS resolution failed for `gitlab.torproject.org`. The `.cargo_vcs_info.json` file is present and records commit `ea9fac019eb886e752652f0f49e9a320c9c98c51` with `path_in_vcs: "crates/oneshot-fused-workaround"`. The crate is part of the Arti project (Tor's Rust implementation), published by the Tor Project. External verification could not be completed due to network constraints but the provenance metadata is consistent with a legitimate Tor Project publication.
+  
+  ## Code review findings
+  
+  ### Thoroughness level: medium (bordering high)
+  
+  Justification: The crate has only 56 lines of Rust code in a single file (`src/lib.rs`). This is small enough to read carefully end-to-end multiple times.
+  
+  ### Claims baseline
+  
+  The crate claims to be a "thin veneer over `futures::channel::oneshot` to fix use with `futures::select!`". It references [futures-rs ticket #2455](https://github.com/rust-lang/futures-rs/issues/2455), which documents a broken `FusedFuture` implementation on `oneshot::Receiver`. The fix is to wrap the receiver in `futures::future::Fuse`.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: Single dependency: `futures = "0.3.14"`. This is entirely consistent with the crate's stated purpose of wrapping `futures::channel::oneshot`. No suspicious dependencies.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: Zero `unsafe` blocks anywhere in the crate. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** — **read in full, multiple passes**
+  
+    Lines 1–64: Module-level documentation and lint configuration. The documentation accurately describes the problem (broken `FusedFuture` on `oneshot::Receiver`) and the solution (wrapping in `Fuse`). The lint list is extensive and security-positive — it denies `unwrap_used`, `print_stdout`, `print_stderr`, and `unused_async` among others. This is the standard Arti lint configuration maintained across all Arti crates.
+  
+    Line 66–68: Two imports — `futures::FutureExt` (for the `.fuse()` method) and `futures::channel::oneshot`. Both are expected and necessary.
+  
+    Line 69: Re-exports `fut_oneshot::Canceled` — the error type for a canceled oneshot. Expected.
+  
+    Lines 71–77: `Sender<T>` is a simple type alias to `fut_oneshot::Sender<T>`. The comment explains it uses `pub type` instead of `pub use` to allow fine-grained `#[allow(clippy::disallowed_types)]` — the Arti project has a workspace-wide lint that disallows direct use of `futures::channel::oneshot` types, routing everything through this wrapper instead.
+  
+    Lines 79–81: `Receiver<T>` is a type alias to `futures::future::Fuse<fut_oneshot::Receiver<T>>`. This is the core of the crate — wrapping the receiver in `Fuse` so that `FusedFuture::is_terminated()` works correctly after the future completes.
+  
+    Lines 83–88: The `channel<T>()` function creates a `fut_oneshot::channel()` and returns `(tx, rx.fuse())`. The `#[allow(clippy::disallowed_methods)]` annotation suppresses the Arti-wide lint on `fut_oneshot::channel()` since this is the authorized wrapper.
+  
+  ### Architectural summary
+  
+  The crate is a minimal workaround for a known upstream bug in `futures-rs`. It wraps `oneshot::Receiver` in `futures::future::Fuse` so that `select!` works correctly. The entire implementation is three type aliases/re-exports and one constructor function. There is no custom logic, no state management, no error handling beyond what `futures` provides. The crate exercises no capabilities beyond what `futures` itself provides — no network, no filesystem, no processes, no env vars, no FFI, no unsafe.
+  
+  ### Red-flag scan results
+  
+  No red flags found. Specifically:
+  - No `unsafe`, `transmute`, `from_raw`, or raw pointer arithmetic
+  - No `std::process::Command` or shell invocation
+  - No `std::env::var` or env var access
+  - No network libraries
+  - No `include_bytes!` or `include_str!` (except the README inclusion in line 20, which is benign)
+  - No base64 blobs, hex blobs, or obfuscated strings
+  - No conditional compilation beyond `docsrs` feature gate on line 19
+  - No `Drop` impls
+  - No custom `serde` deserializers
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - External verification against upstream could not be completed due to network unavailability of `gitlab.torproject.org`. The crate's metadata (authors, homepage, repository URL, keywords) is consistent with the Tor Project's Arti ecosystem.
+  - The `Cargo.lock` file was not reviewed in detail (it locks `futures` and transitive deps; not relevant to the security of this 88-line wrapper).
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+OiZnyhGb5FdB1lvPe3yTsrz0DwDazUEhZ-p8dGMgXlbrxo79STab8-A-6Zb95fT7isQG2p_wch-f4HBvxn5ZAg
+----- END CREV PROOF -----
+
