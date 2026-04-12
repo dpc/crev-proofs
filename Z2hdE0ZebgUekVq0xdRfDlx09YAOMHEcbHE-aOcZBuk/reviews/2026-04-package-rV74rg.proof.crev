@@ -2109,3 +2109,115 @@ llm-agent:
 yCSVInZqqCDXzzhRhETSnCmmHuLxdCM_YxdV2CI92nL1Da_UaISNAKF1BU40eAAqzZGsl3QyFD4jEM7h5v11Dw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-11T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: equivalent
+  version: 1.0.2
+  digest: bWkcum_4SO5HQVD2ZHUesgP29FOWP7kSSgT1w0dAHDk
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: equivalent 1.0.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/equivalent-1.0.2
+  - Upstream repository: https://github.com/indexmap-rs/equivalent
+  - Upstream commit verified: 44cdd44f8b8ebb5f9ae096c7550a5e74ffb7d6ae
+  - Upstream tag for version: v1.0.2
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/indexmap-rs/equivalent at commit
+  `44cdd44f8b8ebb5f9ae096c7550a5e74ffb7d6ae`, which is the commit tagged `v1.0.2`.
+  The `.cargo_vcs_info.json` sha matches the tagged commit. `Cargo.toml.orig` is
+  identical to upstream's `Cargo.toml`. All other files (src/lib.rs, README.md,
+  LICENSE-APACHE, LICENSE-MIT, Cargo.lock) are bit-for-bit identical.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** (29 Rust LoC — small enough for careful end-to-end read).
+  
+  ### Claims baseline
+  
+  The crate claims to provide two traits (`Equivalent` and `Comparable`) for key
+  comparison in maps, as an alternative to `Borrow`-based lookup. It is `no_std`,
+  has zero dependencies, and targets data-structure implementors (e.g. `indexmap`,
+  `hashbrown`).
+  
+  ### File map
+  
+  - **src/lib.rs** (114 lines): **read in full**. The entire crate.
+  - **Cargo.toml.orig**: **read in full**. No dependencies, no features, no build script.
+  - **README.md**: **read in full**. Matches crate-level docs.
+  - **LICENSE-APACHE**, **LICENSE-MIT**: present, standard.
+  - **Cargo.lock**: present, trivial (self-only).
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: none present. Positive.
+  - **Dependencies**: zero. Positive.
+  - **Proc-macro**: not a proc-macro crate. Positive.
+  - **unsafe blocks**: zero (`rg -n 'unsafe' src/` returns nothing). Positive.
+  - **FFI surface**: none. Positive.
+  
+  ### Red-flag scan
+  
+  Searched for: `unsafe`, `transmute`, `from_raw`, `Command::new`, `std::env::var`,
+  `reqwest`, `include_bytes!`, `include_str!`, base64/hex blobs, obfuscated strings,
+  `unwrap`, `expect`, `panic!`, conditional compilation beyond `no_std`. None found.
+  
+  The only attribute is `#![no_std]` at line 62, which is consistent with the crate's
+  stated `no_std` purpose.
+  
+  ### Architecture summary
+  
+  The crate defines two traits in a single file:
+  
+  1. `Equivalent<K>` — a trait with one method `equivalent(&self, key: &K) -> bool`,
+     with a blanket impl for any `Q: Eq` where `K: Borrow<Q>`. This mirrors how
+     `HashMap` uses `Borrow` for lookups but as a standalone trait.
+  
+  2. `Comparable<K>` — extends `Equivalent<K>` with `compare(&self, key: &K) -> Ordering`,
+     with a blanket impl for any `Q: Ord` where `K: Borrow<Q>`. This mirrors how
+     `BTreeMap` uses `Borrow` for lookups.
+  
+  Both blanket impls are `#[inline]` and delegate directly to `PartialEq::eq` / `Ord::cmp`
+  via `Borrow`. The code is minimal, correct, and does exactly what it claims.
+  
+  ### Claims vs. reality reconciliation
+  
+  - Claims: key comparison traits for maps, `no_std`, no dependencies. ✓
+  - Reality: exactly two traits, two blanket impls, `#![no_std]`, zero deps. ✓
+  - No capabilities exercised beyond core trait definitions (no I/O, no allocation,
+    no env access, no network, no FFI, no unsafe). ✓
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. The entire crate is 114 lines in a single file and was read in full.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+BMVNlGSAD0Pq01avovEdNeY5x_pelOprEyNIZvp2tk2oKl5OAr-USYHHT8lOdo22v2uAbVqgDtrW4R0jjyeWAQ
+----- END CREV PROOF -----
+
