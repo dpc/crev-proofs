@@ -6591,3 +6591,103 @@ comment: |-
 JvUVPDH16mMg39gg-v_SSjP03xsgEDJvRV4ojnmJxWu8gYO_iBFEIie7PA_NYw9Ekb5LdStXT5Fxd5-pEGBJAQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T15:51:40+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: iroh-metrics-derive
+  version: 0.2.0
+  digest: -HE2arIEpgKl2M3YViUgy1xjCkQxWfMSOr1WNpDjDlA
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: iroh-metrics-derive 0.2.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/iroh-metrics-derive-0.2.0
+  - Upstream repository: https://github.com/n0-computer/iroh-metrics
+  - Upstream commit verified: 33ee40ef8304244522156040d62cd5d5deed4d31
+  - Upstream tag for version: no `iroh-metrics-derive-v0.2.0` tag; commit identified via `.cargo_vcs_info.json` sha
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The crate's `.cargo_vcs_info.json` records commit `33ee40ef8304244522156040d62cd5d5deed4d31` with `path_in_vcs: "iroh-metrics-derive"`. This commit exists in the upstream repo at https://github.com/n0-computer/iroh-metrics and is titled "chore: Release" by ramfox (2025-04-30). There is no version-specific tag for `iroh-metrics-derive-v0.2.0` (tags exist for v0.1.0, v0.3.0, v0.3.1, v0.4.1), but the commit message and Cargo.toml version match. Both `src/lib.rs` and `Cargo.toml.orig` are bit-for-bit identical to the upstream at this commit.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — 153 LoC in a single file, small enough to read carefully end-to-end.
+  
+  **Claims baseline:** The crate claims to provide "derive macros for iroh-metrics". It is a proc-macro crate (`proc-macro = true`). Dependencies are `heck`, `proc-macro2`, `quote`, `syn` — all standard proc-macro ecosystem crates, fully justified.
+  
+  ### File map
+  
+  - `src/lib.rs` (174 lines) — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependency list**: `heck 0.5`, `proc-macro2 1`, `quote 1`, `syn 2`. All are standard proc-macro dependencies, fully justified for a derive macro crate. No unexpected dependencies.
+  - **Proc-macro crate**: Yes (`proc-macro = true`). Three `#[proc_macro_derive]` functions examined in full (see below).
+  - **unsafe blocks**: None. `rg -n 'unsafe' src/lib.rs` returns no matches.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries.
+  
+  ### Red-flag scan
+  
+  No hits for any red-flag patterns: no `unsafe`, `transmute`, `from_raw`, `Command::new`, `std::env::var`, `reqwest`, `include_bytes!`, `include_str!`, base64 literals, hex blobs, or obfuscated strings.
+  
+  ### Detailed code review
+  
+  The crate provides three derive macros:
+  
+  1. **`MetricsGroup`** (line 9-16): Derives `iroh_metrics::MetricsGroup` trait. Generates a `name()` method returning the struct name in snake_case (or a custom `#[metrics(name = "...")]` override). Also calls `expand_iterable` to derive `Iterable`. Straightforward code generation.
+  
+  2. **`Iterable`** (line 18-23): Derives `iroh_metrics::iterable::Iterable` trait. Generates `field_count()` and `field_ref(n)` methods that enumerate struct fields as `MetricItem` references. Uses doc comments as help text fallback.
+  
+  3. **`MetricsGroupSet`** (line 25-31): Derives `iroh_metrics::MetricsGroupSet` trait. Generates `name()`, `groups_cloned()`, and `groups()` methods. Each field is expected to be `Arc<dyn MetricsGroup>`.
+  
+  Helper functions:
+  - `parse_doc_first_line` (line 120-132): Extracts first doc comment line. Clean implementation.
+  - `MetricsAttr` / `parse_metrics_attr` (line 134-156): Parses `#[metrics(name = "...", help = "...")]` attributes. Only accepts `name` and `help` fields, errors on unknown fields.
+  - `parse_lit_str` (line 158-161): Parses a string literal from attribute meta.
+  - `parse_named_struct` (line 163-173): Validates input is a named struct, returns ident and fields.
+  
+  **Notable observations:**
+  - Line 40: `field.ident.as_ref().unwrap()` — safe because `parse_named_struct` guarantees named fields (which always have identifiers).
+  - Line 94: Same pattern, same safety guarantee.
+  - All error paths use `syn::Error` properly, returning compile errors to the user.
+  - No panicking paths reachable from untrusted input beyond the `unwrap()` calls above, which are guarded.
+  - The generated code references `iroh_metrics` types with absolute paths (`::iroh_metrics::...`), which is correct proc-macro hygiene.
+  
+  ### Reconciliation against claims baseline
+  
+  The crate claims to provide derive macros for iroh-metrics. The code does exactly that — three derive macros generating trait implementations for metrics structs. No capabilities exercised beyond what's needed: no filesystem access, no network, no env vars, no unsafe, no FFI. The dependency list is minimal and justified. The code does only what it claims to do.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `Cargo.lock` present in crate but not compared to upstream (it's a publish artifact, not security-relevant for a proc-macro).
+  - No tests directory in the published crate; tests likely live in the parent workspace. Not a concern for security review.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+0ngwbkId5Khv2UpMukiLZEShMVs-ONYih63rWOa7QrRAlHzW0MhaVcS85qjDN2220mezL43PYnp8ZQVkpiwfAg
+----- END CREV PROOF -----
+
