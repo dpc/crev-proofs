@@ -11328,3 +11328,148 @@ comment: |-
 Lag5Zupld_QfqNo0WpWLELk7zdM2VVWnL-rifWNNQCmonLDbbBPSQv1WNjKgJxPlb_Lx5qJLsaHfOJsaZY0dDA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T04:26:31+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: fallible-streaming-iterator
+  version: 0.1.9
+  digest: OcnmD4L3DOw4rMxIHJ9MBjA337VYVl33xClpyaTpeU4
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: fallible-streaming-iterator 0.1.9
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fallible-streaming-iterator-0.1.9
+  - Upstream repository: https://github.com/sfackler/fallible-streaming-iterator
+  - Upstream commit verified: 9217bc5e381b54b4ef4c38959488a5dc993b7b81
+  - Upstream tag for version: v0.1.9
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to provide "fallible, streaming iteration" — a trait
+  analogous to `Iterator` but where iteration can fail (returning errors)
+  and only one element is available at a time (borrowing from the iterator
+  itself). This is a pure trait-definition crate with combinator adapters.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/sfackler/fallible-streaming-iterator
+  at commit `9217bc5e381b54b4ef4c38959488a5dc993b7b81` tagged `v0.1.9`.
+  No `.cargo_vcs_info.json` present (older crate, published 2018). Verification
+  done by tag lookup. All source files are bit-for-bit identical between the
+  crates.io tarball and the upstream repository at the tagged commit. Manifest
+  (`Cargo.toml.orig` vs upstream `Cargo.toml`) is also identical.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — crate is ~900 lines (single file, including
+  tests and doc comments), small enough to read carefully end-to-end.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Dependencies**: Zero runtime dependencies. The only feature is `std`
+    which just enables `Box` impl. Positive.
+  - **Proc macros**: None. Not a proc-macro crate.
+  - **`unsafe` blocks**: None. `rg -n 'unsafe' src/` returns zero hits. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries.
+  
+  ### Red-flag scan
+  
+  - `transmute`, `from_raw`, raw pointers: none.
+  - `std::process::Command`, shell invocation: none.
+  - `std::env::var`: none.
+  - Network libraries (`reqwest`, `ureq`, etc.): none.
+  - `include_bytes!`, `include_str!`: none.
+  - Base64/hex blobs, obfuscated strings: none.
+  - `unwrap`, `expect`, `panic!`: none.
+  - Suspicious `#[cfg]`: only `#[cfg(feature = "std")]` for `Box` impl and
+    `#[cfg(test)]` for the test module — both benign.
+  - `Drop` impls: none.
+  - Custom serde deserializers: none.
+  
+  ### Per-file map
+  
+  - **src/lib.rs** (900 lines): **read in full**.
+  
+  ### Architecture summary
+  
+  The crate defines two traits:
+  1. `FallibleStreamingIterator` — the core trait with `advance()` and `get()`,
+     plus default-method combinators (all, any, count, filter, find, for_each,
+     fuse, map, map_ref, map_err, nth, position, skip, skip_while, take,
+     take_while).
+  2. `DoubleEndedFallibleStreamingIterator` — adds `advance_back()`.
+  
+  Blanket impls for `&mut I` and `Box<I>` (behind `std` feature).
+  
+  Concrete types: `Convert` (wraps a normal `Iterator<Item=Result<&T, E>>`),
+  `Empty`, `Filter`, `Fuse`, `Map`, `MapRef`, `MapErr`, `Skip`, `SkipWhile`,
+  `Take`, `TakeWhile`. Each is a straightforward combinator struct with the
+  expected semantics.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to provide fallible streaming iteration. The code does
+  exactly that and nothing more. No I/O, no allocation (except `Map` stores
+  one `Option<B>`), no network, no filesystem, no env vars, no processes.
+  The `no_std` support (default, no `std` feature) is genuine — only `core`
+  is used. The `std` feature only adds a `Box<I>` blanket impl.
+  
+  ### Specific observations
+  
+  1. **`Skip::advance` has a subtle recursion**: after consuming `n` elements
+     it calls `self.advance()` again (line 740–741), but since `self.n` is set
+     to 0 on line 739, the recursive call immediately delegates to
+     `self.it.advance()`. This is correct but could be clearer as a direct
+     `self.it.advance()` call. Not a bug.
+  
+  2. **`Fuse` state machine**: The three-state (`Start`, `Middle`, `End`)
+     fuse is more elaborate than std's `Fuse` but handles the streaming
+     iterator's "advance then get" protocol correctly. The `next()` override
+     avoids double-advancing. Correct.
+  
+  3. **`TakeWhile::advance`** always calls `self.it.next()` even after `done`
+     is set, consuming an extra element. This matches the standard library's
+     `TakeWhile` behavior (the element that fails the predicate is consumed).
+     Acceptable.
+  
+  4. **Test module** (lines 893–899): Only contains two functions asserting
+     object safety of the two traits. No behavioral tests — testing is
+     presumably done downstream. This is fine for a trait-definition crate.
+  
+  5. **`#[warn(missing_docs)]`** is enabled, ensuring public API is documented.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The `README.md` was not read (only `Cargo.toml` and `src/lib.rs`); for a
+    single-file crate the source is the authoritative documentation.
+  - No behavioral tests exist in the crate itself; downstream usage is the
+    effective test suite.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+s2xu4iLZVBWwmaT9bJhay6rsTgdzvTGosf1-EtennQf0VJH_fHp3VCPPn9NkuGPL4ABmPcWSk46lkz4gm17yCw
+----- END CREV PROOF -----
+
