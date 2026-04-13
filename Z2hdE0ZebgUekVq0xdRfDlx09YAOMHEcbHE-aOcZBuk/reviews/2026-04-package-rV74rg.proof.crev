@@ -10403,3 +10403,199 @@ comment: |-
 MlKWhPMLwtp0Ho_sSUsycluf56poufN9C5d55uP9IHW2cvICnUHuCX1hT1ozXbZmmrnsILBmoXm2Y56HOBstCg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T03:50:46+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: constant_time_eq
+  version: 0.3.1
+  digest: kKcLZ7Pa7Dp9YQAo3H4PQz3mBmOP8uubk_bc5dMm3P8
+review:
+  thoroughness: high
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: constant_time_eq 0.3.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/constant_time_eq-0.3.1
+  - Upstream repository: https://github.com/cesarb/constant_time_eq
+  - Upstream commit verified: bea93a336b65dee32f1ed871ea1eecdf47977bb2
+  - Upstream tag for version: 0.3.1
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/cesarb/constant_time_eq at commit
+  `bea93a336b65dee32f1ed871ea1eecdf47977bb2`, which is tagged as `0.3.1`. The sha from
+  `.cargo_vcs_info.json` matches the tag exactly. `diff -r --brief` between the crate
+  source and the upstream checkout at that commit shows zero differences (excluding
+  expected files: `.cargo_vcs_info.json`, `.cargo-ok`, `Cargo.toml`, `Cargo.lock`,
+  `.git`, `.gitignore`). Manifest diff (`Cargo.toml.orig` vs upstream `Cargo.toml`)
+  is identical.
+  
+  ## Claims baseline
+  
+  The crate claims to compare two equal-sized byte strings in constant time, inspired by
+  the Linux kernel's `crypto_memneq`. It is `#![no_std]`, categorised as cryptography
+  and no-std. It has zero runtime dependencies. Dev-dependencies are `criterion` (benchmarks)
+  and `count_instructions` (constant-time verification tests, feature-gated).
+  
+  ## Code review findings
+  
+  **Thoroughness level: high** — the crate is 233 lines of Rust in a single source file,
+  small enough for a multi-pass formal review. This is a cryptography-adjacent crate
+  where constant-time correctness is the entire point.
+  
+  ### File map
+  
+  - `src/lib.rs` (233 lines): **read in full**, multi-pass (architecture, line-by-line, adversarial)
+  - `Cargo.toml.orig` (26 lines): **read in full**
+  - `README` (12 lines): **read in full**
+  - `tests/count_instructions.rs` (167 lines): **read in full**
+  - `benches/bench.rs` (51 lines): **read in full**
+  - `CHANGES`: not read (changelog, not code)
+  - `LICENSE-*`: not read (standard license files)
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: none present (positive)
+  - **proc-macro**: not a proc-macro crate (positive)
+  - **Dependencies**: zero runtime dependencies. Dev-deps are `criterion` and
+    `count_instructions` only. Appropriate for the crate's purpose.
+  - **FFI / extern "C"**: none present (positive)
+  - **unsafe blocks**: 2 blocks found, both in `optimizer_hide` functions (analysed below)
+  
+  ### Unsafe analysis
+  
+  There are two `unsafe` blocks, both serving the same purpose on different architectures:
+  
+  1. **Lines 9–12** (`x86`/`x86_64`): `core::arch::asm!("/* {0} */", inout(reg_byte) value, ...)`.
+     The inline assembly is a no-op comment that forces the compiler to treat `value` as
+     live in a register, preventing constant propagation and dead-code elimination of the
+     XOR-accumulation result. The `options(pure, nomem, nostack, preserves_flags)` correctly
+     declares that the asm has no side effects, touches no memory, doesn't use the stack,
+     and doesn't modify flags. The `inout(reg_byte)` constraint is correct for `u8` on x86.
+     **Soundness argument**: the asm block is semantically an identity function; the value
+     goes in and comes back unchanged. The safety invariant is trivially satisfied — no
+     memory is accessed, no pointers are involved, no aliasing or lifetime concerns.
+  
+  2. **Lines 27–30** (`arm`/`aarch64`/`riscv32`/`riscv64`): identical logic but using
+     `inout(reg)` instead of `inout(reg_byte)` (since these architectures don't have a
+     byte-specific register class). The `#[allow(asm_sub_register)]` suppresses the
+     warning about using a `u8` in a full-width register. Same soundness argument applies.
+  
+  3. **Lines 46–58** (fallback for other architectures and Miri): uses `core::hint::black_box`
+     with `#[inline(never)]` — no unsafe. The comment explains why `black_box` alone might
+     not be sufficient on experimental backends and why the double barrier is used. This is
+     a reasonable conservative fallback.
+  
+  ### Architecture and data flow
+  
+  The crate provides two families of constant-time byte-string comparison:
+  
+  - **Slice-based**: `constant_time_eq(a, b)` → checks length equality (short-circuit, not
+    constant-time for different lengths, which is documented), then calls `constant_time_ne`
+    which XOR-accumulates all byte pairs into `tmp`, passes `tmp` through `optimizer_hide`,
+    and returns whether the hidden value equals 0.
+  
+  - **Array-based**: `constant_time_eq_n::<N>(a, b)` → same XOR-accumulate pattern but with
+    compile-time-known size (no length check needed). Convenience wrappers for N=16, 32, 64.
+  
+  The key insight is that `optimizer_hide` prevents the compiler from observing that the
+  accumulated XOR result could be short-circuited on the first non-zero byte. Without it,
+  the optimizer could transform the loop into an early-return comparison, breaking
+  constant-time guarantees. The approach mirrors Linux kernel's `crypto_memneq`.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims `#![no_std]`: confirmed, line 1.
+  - Claims constant-time comparison: the XOR-accumulate + optimizer barrier pattern is the
+    standard technique. The `count_instructions` tests (feature-gated) empirically verify
+    that the instruction count doesn't vary with input content.
+  - Claims no I/O, no network, no filesystem: confirmed — no such calls anywhere.
+  - No capabilities exercised beyond what's claimed.
+  
+  ### Red-flag scan
+  
+  - `unsafe`: 2 blocks, both analysed above — benign identity-function inline asm
+  - `transmute`, `from_raw`, raw pointers: none
+  - `Command`, `env::var`, network crates: none
+  - `include_bytes!`, `include_str!`: none
+  - Base64/hex blobs, obfuscated strings: none
+  - `unwrap`/`expect`/`panic!`: `assert!(a.len() == b.len())` at line 64 — this panics if
+    called with unequal lengths, which is documented behavior and correct (the caller must
+    ensure equal lengths for constant-time guarantees).
+  - Conditional compilation: `#[cfg(target_arch = ...)]` and `#[cfg(not(miri))]` — all
+    architectures converge on the same semantic (identity function as optimizer barrier),
+    just using different asm register classes. The Miri fallback uses `black_box`. No
+    suspicious target-specific behavior.
+  - `Drop` impls: none
+  - Custom serde: none
+  
+  ### Adversarial pass
+  
+  - Could the asm block be doing something other than identity? The `options(pure, nomem,
+    nostack, preserves_flags)` together with the comment-only asm body `/* {0} */` ensure
+    the compiler treats it as a pure function with no side effects. The `inout` constraint
+    means the output is the same register as the input. The assembly itself is literally a
+    comment — no instructions are emitted.
+  - Could the XOR accumulation leak timing? On modern CPUs, XOR and OR are constant-time
+    single-cycle operations. The loop iterates over all bytes regardless of content (no
+    early exit). The `optimizer_hide` call prevents the compiler from adding an early exit.
+    This is sound.
+  - Could the length check in `constant_time_eq` leak timing? Yes — the function returns
+    `false` immediately if lengths differ, which is variable-time. This is explicitly
+    documented in the docstring ("Not equal-sized, so won't take constant time"). This is
+    the standard approach (you can't compare differently-sized strings in constant time
+    without knowing a bound).
+  - Could a malicious modification hide in the test files? The tests and benchmarks only
+    use the public API and don't affect the library's behavior. The `count_instructions`
+    crate is only a dev-dependency.
+  
+  ## Cross-check against existing reviews
+  
+  One prior review exists: by `FYlr8YoYGVvDwHQxqEIs89reKKDy-oWisoO0qXXEfHE` (dpc) of
+  version 0.1.3, rated `positive` with `thoroughness: medium`, `understanding: high`.
+  No comment was provided.
+  
+  **Agreement**: the prior review's `positive` rating and `high` understanding align with
+  my findings. The crate is well-written, does exactly what it claims, and the core
+  approach (XOR-accumulate + optimizer barrier) has been consistent from 0.1.x through
+  0.3.x.
+  
+  **Changes since 0.1.3**: version 0.3.1 adds const-generic array variants
+  (`constant_time_eq_n`), architecture-specific inline asm (0.1.x likely used a simpler
+  barrier), and the `count_instructions` test infrastructure. These are all improvements
+  to correctness guarantees, not regressions.
+  
+  **Verdict**: the prior review does not change my proposed rating. I rate `positive` with
+  `medium` understanding (I understand the technique well, but I'm not an expert in all
+  target architectures' asm semantics — `medium` is honest here).
+  
+  ## Open questions / things skipped
+  
+  - `CHANGES` file not read (changelog, not code)
+  - License files not read (standard Apache-2.0/MIT-0/CC0)
+  - The `count_instructions` feature-gated tests were read but cannot be run in this
+    context (they require ptrace-based instruction counting)
+  - Whether `options(pure, nomem, nostack, preserves_flags)` is fully correct for all
+    future Rust/LLVM versions is an open question, but it matches current stable semantics
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: high
+  - understanding: medium
+----- SIGN CREV PROOF -----
+HBSc9NZnsjvgz37KnJUFG7ayz1GsGLDqaBbhmGlC5uMBftvBkRo6Sa-DnRl7ONfiZJBAkRsp4Xf9Brrks2jfDw
+----- END CREV PROOF -----
+
