@@ -9402,3 +9402,166 @@ comment: |-
 aRlAT30IJZ4EK9RNH95vBukR-YI9O089qlgPfh4akmNQfKoEpg2J93YpXri_SwJL2eIqt98LdwF_DFzcyVTwBA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-11T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: fastrand
+  version: 2.3.0
+  digest: P8GMtkjJaC_atLZdL9FYc6Kqc5oSZ3PICHZRjcYdEXw
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: fastrand 2.3.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fastrand-2.3.0
+  - Upstream repository: https://github.com/smol-rs/fastrand
+  - Upstream commit verified: 8419f8916f08c63572b4f7cbdc07cec94c1fc5ed (v2.3.0 tag)
+  - Upstream tag for version: v2.3.0
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `8419f8916f08c63572b4f7cbdc07cec94c1fc5ed`.
+  This sha matches the commit pointed to by the `v2.3.0` tag in the upstream repository.
+  Both the vcs_info sha and the version tag agree.
+  
+  Diff result: all source files are bit-for-bit identical between the crate tarball and
+  upstream at commit `8419f89`. `Cargo.toml.orig` matches upstream's `Cargo.toml` exactly.
+  The only difference is `Cargo.toml` (rewritten by `cargo publish`) — expected.
+  Files only in tarball: `Cargo.toml.orig`, `.cargo_vcs_info.json` — expected.
+  Files only upstream: `.git`, `.github`, `.gitignore` — excluded by `exclude = ["/.*"]`.
+  
+  **Conclusion:** Package matches public repo at the tagged commit. Full pass.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** (679 LoC Rust per verify output; 5 `.rs` files
+  including benches/tests. Small enough to read every file end-to-end.)
+  
+  **Claims baseline:** Crate claims to be "a simple and fast random number generator"
+  using the WyRand algorithm. Not cryptographically secure. Provides both a thread-local
+  global RNG and an explicit `Rng` struct. Features: `std` (default, enables thread-local),
+  `alloc` (enables `Vec`-returning methods), `js` (WASM entropy via `getrandom`). No
+  network, no filesystem, no env vars, no subprocesses expected.
+  
+  ### File map
+  
+  - `src/lib.rs` (689 lines): **read in full** — `Rng` struct, WyRand core, all generation methods
+  - `src/global_rng.rs` (225 lines): **read in full** — thread-local RNG, seeding, free functions
+  - `benches/bench.rs`: **not read** (benchmark code, not shipped functionality)
+  - `tests/char.rs`: **not read** (test code)
+  - `tests/smoke.rs`: **not read** (test code)
+  - `Cargo.toml.orig`: **read in full**
+  - `README.md`: **read in full** (not included in tarball via `exclude`)
+  - `CHANGELOG.md`: **not read** (changelog)
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc macros**: None. Positive.
+  - **`unsafe` blocks**: Zero. The crate has `#![forbid(unsafe_code)]` at the top of
+    `src/lib.rs` (line 103). This is the strongest possible guarantee — any `unsafe`
+    block anywhere in the crate would be a compile error. Strongly positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  - **Dependencies**: Only `getrandom` (optional, only on WASM targets with `js` feature).
+    The `std` and `alloc` features use only `core`/`alloc`/`std` from the standard library.
+    Dev-dependencies (`rand`, `wyhash`, `getrandom`, `wasm-bindgen-test`) are not shipped.
+    No surprising deps. Positive.
+  
+  ### Red-flag scan
+  
+  - No `unsafe`, no `transmute`, no raw pointers — enforced by `#![forbid(unsafe_code)]`.
+  - No `Command::new` or process spawning.
+  - No `std::env::var` or env access.
+  - No network libraries.
+  - No `include_bytes!` or `include_str!`.
+  - No obfuscated strings or binary blobs.
+  - No `extern "C"` or FFI.
+  - `unwrap()` used in `alphabetic()`, `alphanumeric()`, `lowercase()`, `uppercase()` on
+    `self.choice(CHARS)` — safe because the `CHARS` slices are non-empty compile-time
+    constants. Also used in `char()` method's `try_into().unwrap()` — safe because the
+    surrogate gap arithmetic guarantees a valid Unicode scalar value.
+  - `panic!` in `digit()` for base 0 or base > 36 — documented, expected.
+  - `panic_empty_range()` in integer/char generation — documented, expected for empty ranges.
+  - Conditional compilation: `#[cfg(target_pointer_width = ...)]` for isize/usize
+    generation and `#[cfg(target_os = "unknown")]` for WASM seed source. Both are
+    straightforward and expected.
+  
+  ### Architecture summary
+  
+  The crate has two layers:
+  
+  1. **`Rng` struct** (`src/lib.rs`): A WyRand PRNG holding a single `u64` state. Core
+     generation is `gen_u64()` which advances state by adding a constant and applies the
+     WyRand mixing function (128-bit multiply, XOR high/low halves). Uniform range
+     generation uses Lemire's nearly-divisionless method (`gen_mod_u32/u64/u128`). Higher-
+     level methods (bool, char, float, shuffle, fill, choice, choose_multiple) build on
+     these primitives.
+  
+  2. **Thread-local global RNG** (`src/global_rng.rs`): A `thread_local!` `Cell<Rng>`
+     seeded from `Instant::now()` + `thread::current().id()` (or `getrandom` on WASM+js,
+     or a fixed seed on WASM without js). Free functions (`fastrand::u32()`, etc.) delegate
+     to this via `with_rng()`. The `RestoreOnDrop` guard ensures the RNG state is saved back
+     even on panic.
+  
+  ### Reconciliation against claims
+  
+  The crate does exactly what it claims: provides a simple, fast, non-cryptographic PRNG.
+  
+  Capabilities exercised:
+  - `std::time::Instant` and `std::thread::current()` for entropy seeding — justified,
+    this is the thread-local seed source.
+  - `getrandom` on WASM — justified, documented feature for JS environments.
+  - No other capabilities (no network, no filesystem beyond the above, no env, no
+    processes, no FFI, no unsafe).
+  
+  No capability exceeds the stated purpose.
+  
+  ### Minor observations
+  
+  - The float generation methods (`f32()`, `f64()`) use bit manipulation to produce
+    uniform values in `[0, 1)`. The technique is standard (construct a float in
+    `[1, 2)` via IEEE 754 bit layout, then subtract 1.0).
+  - `choose_multiple` implements reservoir sampling (Vitter's Algorithm R). The
+    implementation correctly handles the case where the iterator has fewer elements
+    than requested, including memory shrinkage for over-allocated vectors.
+  - The `Clone` impl for `Rng` creates a new `Rng` with the same seed rather than
+    copying state directly. This means a cloned `Rng` produces the same sequence
+    from the beginning, not from the current position. This is documented.
+  - The `bool()` method uses `u8(..) % 2 == 0` which is perfectly uniform since
+    Lemire's method already produces a uniform u8.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `benches/bench.rs`: Not reviewed (benchmark code, not shipped functionality).
+  - `tests/char.rs`, `tests/smoke.rs`: Not reviewed (test code).
+  - The `getrandom` dependency (optional, WASM-only) was not reviewed itself — it is a
+    well-known, widely-used crate maintained by the Rust project.
+  - Statistical quality of WyRand output: not formally verified, but WyRand is a published,
+    peer-reviewed algorithm with known good properties for non-cryptographic use.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+U-0YWBV5m9HnpNAB9Ck19ZylY2NZaw4Hv-d_YyndpwNIYeeB-n2hVIJ3x5H1S23SXwWJXTZUDSRhbfPOl8H2AA
+----- END CREV PROOF -----
+
