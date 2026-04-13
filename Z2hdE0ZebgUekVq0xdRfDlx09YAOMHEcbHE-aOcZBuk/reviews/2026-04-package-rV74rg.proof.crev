@@ -10999,3 +10999,104 @@ comment: |-
 0p8GqCXWDvuPWM1mMhgvrUffn3PjkwaPkSDo9OWXr_dDDCfbCqDE7Y0S37RsA70IAFSPChXbg0iSBN242ulgCQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T04:15:42+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: arrayref
+  version: 0.3.9
+  digest: ajObBdoQl0EITpwV4ZqwGhF3cJFVspfmhNyVrhwhaCE
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: arrayref 0.3.9
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/arrayref-0.3.9
+  - Upstream repository: https://github.com/droundy/arrayref
+  - Upstream commit verified: f8d0299d863922db6c409d08098941e833b70d69
+  - Upstream tag for version: n/a (no tags in upstream repo)
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to provide four macros (`array_ref!`, `array_refs!`, `array_mut_ref!`, `mut_array_refs!`) for taking array references from slices or arrays. It is `#![no_std]`, has zero runtime dependencies (only `quickcheck` as a dev-dependency), no `build.rs`, no proc macros, no FFI. Pure Rust macro-only crate.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/droundy/arrayref at commit `f8d0299d863922db6c409d08098941e833b70d69` (the HEAD of master, commit message "bump version"). No version tags exist in the repo. `Cargo.toml.orig` is identical to the upstream `Cargo.toml`. All other files are bit-for-bit identical (only the rewritten `Cargo.toml` differs, as expected).
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — 504 lines of Rust in a single file, small enough to read end-to-end.
+  
+  ### File map
+  
+  - `src/lib.rs` (504 lines): **read in full**
+  - `examples/array_refs.rs` (13 lines): **read in full**
+  - `examples/array_refs_with_const.rs` (18 lines): **read in full**
+  - `examples/simple-case.rs` (15 lines): **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependency list**: Zero runtime dependencies. Only `quickcheck = "1.0"` as dev-dependency. Consistent with a pure macro crate.
+  - **Proc-macro**: Not a proc-macro crate. These are `macro_rules!` macros.
+  - **FFI surface**: None.
+  - **unsafe blocks**: Multiple — this is the core mechanism of the crate. Analyzed below.
+  
+  ### Unsafe analysis
+  
+  The crate's four macros all work by the same pattern: take a slice (bounds-checked), then cast the pointer to a fixed-size array reference via `unsafe`. Each macro defines an inner `unsafe fn as_array[s]` that performs the cast.
+  
+  1. **`array_ref!`** (line 57-72): Takes `$arr[$offset..$offset+$len]` (bounds-checked slice), then casts `slice.as_ptr() as *const [_; $len]` and dereferences. The inner function is `const unsafe fn as_array<T>(slice: &[T]) -> &[T; $len]`. **Sound**: the slice is already bounds-checked to have exactly `$len` elements, the pointer is aligned (it came from a valid slice), and the lifetime is tied to the input slice.
+  
+  2. **`array_refs!`** fixed-size variant (line 139-158): Takes `&[T; $($len +)* 0]` — the input must be an array reference whose total size equals the sum of all sub-lengths (compile-time checked). Iterates with `p.offset($len as isize)` to carve out sub-arrays. **Sound**: total size is compile-time verified, each sub-array starts at the correct offset, pointer alignment is preserved from the original array.
+  
+  3. **`array_refs!`** variable-length variant (line 106-138): Accepts `&[T]` (a slice), computes `MIN_LEN` at const time, asserts `a.len() >= MIN_LEN`, then carves out fixed-size arrays for `$pre` and `$post` portions, with a variable-length `&[T]` slice in the middle via `slice::from_raw_parts`. **Sound**: the runtime assertion ensures sufficient length, and `var_len = a.len() - MIN_LEN` is computed after the assertion. Pointer arithmetic stays within bounds.
+  
+  4. **`array_mut_ref!`** (line 283-298): Mutable version of `array_ref!`, same pattern with `as_mut_ptr()` and `*mut [_; $len]`. **Sound** for the same reasons as `array_ref!`.
+  
+  5. **`mut_array_refs!`** (line 202-256): Mutable versions of both `array_refs!` variants. Same patterns with `as_mut_ptr()`. **Sound**: each mutable reference covers a non-overlapping portion of the array because the sub-array sizes are contiguous and sum to the total.
+  
+  All unsafe blocks are well-motivated: there is no safe way (pre-RFC 495 / stable Rust) to convert a slice to a fixed-size array reference without a copy. The pattern is idiomatic and widely used. The `#[allow(unused_unsafe)]` annotations are present because the inner function is already `unsafe`, so the outer `unsafe {}` at the call site may be redundant depending on context — this is cosmetic, not a soundness issue.
+  
+  ### Red-flag scan
+  
+  - No `std::process::Command`, no env var access, no network calls, no `include_bytes!`, no obfuscated strings, no base64 literals, no `transmute`.
+  - No `Drop` impls.
+  - No conditional compilation affecting behavior (only `#[cfg(test)]` for the test module).
+  - `#![no_std]` with `extern crate std` only under `#[cfg(test)]`.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to provide macros for array references from slices. That is exactly what it does. No capabilities beyond pure pointer arithmetic within already-bounds-checked data. No I/O, no allocation, no side effects. Fully consistent.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The upstream repo has no version tags, so verification relied on `.cargo_vcs_info.json` SHA matching the upstream commit. This is a minor process concern (no tag to cross-reference), but the code itself matches exactly.
+  - `clippy::eval_order_dependence` allow is present — this lint was renamed to `clippy::mixed_read_write_in_expression`. The allow is necessary because the macros use `p = p.add(...)` interleaved with tuple construction. The behavior is well-defined because each tuple element is fully evaluated before the next.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+yOKWGLgrs0-jGIa5JRFlEmDT-uJ7H_Vjza5MxicNMYWaXSt16xFpBHSdKmgJg03f2eoywEbANzj8S5aQYDtLAA
+----- END CREV PROOF -----
+
