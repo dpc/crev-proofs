@@ -9695,3 +9695,160 @@ comment: |-
 VMjj1wpEfN_rOpTi9SPagb15Fe3YqFQj_OwO8bGc1NJwNcPveGg94zXNaIM4z-PVvPT_1rc-dStAgbr18NohAg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T03:56:06+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: try-lock
+  version: 0.2.5
+  digest: Lab-BoDWMwxe8GsOzYHtJ_BOqEWtVZeMy0HyOJDp174
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: try-lock 0.2.5
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/try-lock-0.2.5
+  - Upstream repository: https://github.com/seanmonstar/try-lock
+  - Upstream commit verified: fd160ecd9105e8afcc43dbea450a0ef6e5128cce
+  - Upstream tag for version: v0.2.5
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` records sha `fd160ecd9105e8afcc43dbea450a0ef6e5128cce`. That
+  commit exists upstream and is tagged `v0.2.5`. `diff -r --brief` between the crate
+  source and upstream checkout (excluding expected files: `.git`, `Cargo.toml`,
+  `Cargo.toml.orig`, `.cargo_vcs_info.json`, `.cargo-ok`) shows zero differences.
+  All files bit-for-bit identical.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** (137 LoC in a single file — small enough to read
+  carefully end-to-end.)
+  
+  ### Claims baseline
+  
+  Crate claims to be "a lightweight atomic lock" — a try-lock (non-blocking) guard
+  backed by `AtomicBool`. `no_std` compatible, zero dependencies. Categories:
+  concurrency, no-std. Author: Sean McArthur (seanmonstar, author of hyper/reqwest).
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Dependencies**: Zero (empty `[dependencies]`). Positive.
+  - **Proc-macro**: No. Positive.
+  - **FFI**: None. Positive.
+  - **`unsafe` blocks**: 4 occurrences — all analyzed below.
+  
+  ### File map
+  
+  - **src/lib.rs** (267 lines): **read in full**, every line analyzed.
+  
+  ### Unsafe analysis
+  
+  1. **Line 93-95** (`try_lock`): Delegates to `try_lock_explicit_unchecked` with
+     `Acquire`/`Release` ordering. Safe — these orderings are sufficient for mutual
+     exclusion.
+  
+  2. **Line 111-113** (`try_lock_order`, deprecated): Same delegation, but allows
+     caller-chosen orderings without validation. Correctly marked `unsafe` via the
+     delegation to `try_lock_explicit_unchecked`. The deprecation message directs
+     users to `try_lock_explicit` (the safe version with validation).
+  
+  3. **Line 165-175** (`try_lock_explicit_unchecked`): Core lock acquisition.
+     `AtomicBool::swap(true, lock_order)` is an atomic RMW — if it returns `false`
+     (was unlocked), we have exclusive access. The `UnsafeCell::get()` pointer is
+     only dereferenced while the lock is held (via `Locked` guard), and `Locked`
+     releases the lock on drop. **Sound**, provided the caller passes orderings at
+     least as strong as Acquire/Release. The method is correctly marked `unsafe`
+     and documented accordingly.
+  
+  4. **Line 228** (`Deref::deref` for `Locked`): Dereferences `UnsafeCell` pointer.
+     **Sound** — `Locked` can only be constructed when the lock is held (private
+     fields, no public constructor), and `&self` borrow prevents aliasing with
+     `DerefMut`.
+  
+  5. **Line 234** (`DerefMut::deref_mut` for `Locked`): Dereferences `UnsafeCell`
+     pointer mutably. **Sound** — `&mut self` guarantees exclusive access to the
+     guard, and the lock is held.
+  
+  ### unsafe impl analysis
+  
+  - **Line 185**: `unsafe impl<T: Send> Send for TryLock<T>` — correct. The lock
+    transfers ownership of `T` across threads; `T: Send` is the right bound.
+  - **Line 186**: `unsafe impl<T: Send> Sync for TryLock<T>` — correct. Multiple
+    threads can hold `&TryLock<T>` and race to acquire, but only one succeeds and
+    gets `&mut T`. `T: Send` (not `Sync`) suffices because the lock provides
+    mutual exclusion.
+  
+  ### Drop impl
+  
+  - **Line 239-243** (`Drop for Locked`): Stores `false` to `is_locked` with the
+    configured unlock ordering. Releases the lock. No side effects beyond freeing
+    the lock — purely correct.
+  
+  ### PhantomData usage
+  
+  - **Line 221**: `PhantomData<*mut T>` on `Locked` — correctly suppresses auto-
+    trait impls of `Send` and `Sync` for `Locked`, since a guard holding a mutable
+    reference into shared state should not be sendable to another thread.
+  
+  ### Red-flag scan
+  
+  - No network, no filesystem, no process spawning, no env var access.
+  - No `include_bytes!`, no obfuscated strings, no conditional compilation beyond
+    `#[cfg(test)]` and `#[cfg_attr(not(test), no_std)]`.
+  - No `transmute`, no raw pointer arithmetic beyond `UnsafeCell::get()`.
+  - `#![deny(warnings)]` — good hygiene.
+  - `#![deny(missing_docs)]`, `#![deny(missing_debug_implementations)]` — good.
+  
+  ### Architecture summary
+  
+  Single file, two public types: `TryLock<T>` (the lock) and `Locked<'a, T>` (the
+  RAII guard). Lock acquisition is a single `AtomicBool::swap`; release is a single
+  `AtomicBool::store`. The API surface is minimal and correct. The `try_lock_explicit`
+  family correctly validates orderings at the safe boundary, with the unchecked
+  variant properly marked `unsafe`. The deprecated `try_lock_order` is a migration
+  path from pre-0.2.3 API.
+  
+  ### Claims vs reality reconciliation
+  
+  Crate claims: lightweight atomic lock, no_std, zero deps. Reality: exactly that.
+  No capabilities exercised beyond `core::sync::atomic` and `core::cell::UnsafeCell`.
+  No surprises.
+  
+  ## Cross-check against existing reviews
+  
+  One prior review exists: v0.2.2 by `FYlr8YoYGVvDwHQxqEIs89reKKDy-oWisoO0qXXEfHE`
+  (dpc's older crev id), rated `positive` at `medium`/`medium` with comment "LGTM".
+  That review is consistent with my findings. The changes from 0.2.2 to 0.2.5 added
+  the `try_lock_explicit` safe API, deprecated `try_lock_order`, and added
+  `PhantomData` to suppress auto-traits on `Locked` — all improvements. No
+  disagreement with the prior review.
+  
+  ## Open questions / things skipped
+  
+  - Test module (lines 252-266): read in full, single `fmt_debug` test. Minimal but
+    correct. No concerns.
+  - README.md: read, matches crate description.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+TzUdM3-yVd35cxZOy3lOY4RfdH_KL6_5oxY_5oqobPRqKucLuBTyys4FOuGO14lfcjIjrct65JbDO5dqCOOVAw
+----- END CREV PROOF -----
+
