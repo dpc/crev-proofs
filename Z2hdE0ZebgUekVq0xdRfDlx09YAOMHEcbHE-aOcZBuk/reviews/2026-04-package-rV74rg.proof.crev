@@ -11943,3 +11943,136 @@ comment: |-
 h7TUgMGv6sH3Y-UOQ7VVRDKaxsph7YYEaJztkTV7llA4fc9qRXFZkzeq8OOeN4pS4iUPg83TU_DNOk9zL42SCw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T04:43:16+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: supports-hyperlinks
+  version: 3.2.0
+  digest: NXseP-fSFvImndosCJ1kwuZg0ieTlD667yRkwM8Pfo0
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: supports-hyperlinks 3.2.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/supports-hyperlinks-3.2.0
+  - Upstream repository: https://github.com/zkat/supports-hyperlinks
+  - Upstream commit verified: d4729ba67b7d9be04169b2c96444488936cff58e
+  - Upstream tag for version: v3.2.0
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/zkat/supports-hyperlinks at commit
+  `d4729ba67b7d9be04169b2c96444488936cff58e`, which is the commit tagged as `v3.2.0`.
+  `.cargo_vcs_info.json` sha1 matches the tag exactly. `diff -r --brief` between the
+  crate source and the upstream checkout (excluding expected cargo-only files) shows
+  zero differences. `Cargo.toml.orig` is byte-identical to the upstream `Cargo.toml`.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — crate is 47 Rust LoC in a single file, small enough
+  for a careful end-to-end read.
+  
+  ### Claims baseline
+  
+  The crate claims to detect whether the current terminal supports rendering hyperlinks
+  (OSC 8 escape sequences). It does so by checking environment variables for known
+  terminal emulators and optionally checking if the stream is a TTY. No network access,
+  no filesystem access, no unsafe code, no FFI, no build script, no proc macros.
+  
+  ### File map
+  
+  - `src/lib.rs` (67 lines) — **read in full**
+  - `Cargo.toml.orig` — **read in full**
+  - `README.md` — **read in full**
+  - `CHANGELOG.md` — not read (changelog, not code)
+  - `cliff.toml` — not read (changelog generator config)
+  - `Makefile.toml` — not read (cargo-make config, not shipped code)
+  - `Cargo.lock` — not read (lockfile)
+  - `LICENSE` — not read (standard Apache-2.0)
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: Zero dependencies. The crate is entirely self-contained,
+    using only `std::env::var`, `std::io::IsTerminal`, and `std::io::stdout`/`stderr`.
+    This is ideal for its stated purpose.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **Unsafe blocks**: None (`grep -rn 'unsafe' src/` returns nothing). Positive.
+  - **FFI surface**: None. Positive.
+  
+  ### Detailed code analysis (src/lib.rs)
+  
+  The crate exposes three public items:
+  
+  1. `Stream` enum — `Stdout` | `Stderr`. Simple, no issues.
+  
+  2. `supports_hyperlinks()` — checks environment variables in order:
+     - `FORCE_HYPERLINK` — if set and not "0", returns true. Good override mechanism.
+     - `DOMTERM` — existence check for DomTerm terminal.
+     - `VTE_VERSION` — parsed as integer, returns true if >= 5000 (VTE 0.50+).
+       Uses `unwrap_or(0)` for parse failure — safe, conservative default.
+     - `TERM_PROGRAM` — matches known programs: Hyper, iTerm.app, terminology, WezTerm,
+       vscode, ghostty, zed.
+     - `TERM` — matches xterm-kitty, alacritty, alacritty-direct.
+     - `COLORTERM` — matches xfce4-terminal.
+     - `WT_SESSION` / `KONSOLE_VERSION` — existence checks for Windows Terminal and Konsole.
+  
+     All branches are simple string comparisons against env vars. No surprising behavior.
+  
+  3. `on(stream: Stream)` — combines TTY check with `supports_hyperlinks()`. When
+     `FORCE_HYPERLINK` is set, bypasses the TTY check (intentional, documented).
+  
+  4. `is_a_tty(stream: Stream)` — private, uses `std::io::IsTerminal` trait. Correct.
+  
+  ### Red-flag scan results
+  
+  - No `unsafe`, `transmute`, `from_raw`, raw pointers.
+  - No `std::process::Command`, no shell invocation.
+  - `std::env::var` is used — this is the core purpose of the crate, not exfiltration.
+    All env var reads are for terminal detection (FORCE_HYPERLINK, DOMTERM, VTE_VERSION,
+    TERM_PROGRAM, TERM, COLORTERM, WT_SESSION, KONSOLE_VERSION). All expected.
+  - No network libraries, no `include_bytes!`, no base64 blobs, no obfuscated strings.
+  - No `unwrap`/`expect` on untrusted input paths (the one `unwrap_or(0)` is safe).
+  - No conditional compilation (`#[cfg]`).
+  - No `Drop` impls.
+  - No custom serde deserializers.
+  
+  ### Reconciliation against claims
+  
+  The crate claims to detect terminal hyperlink support via environment variables. The
+  code does exactly that and nothing more. Every env var read is justified by the crate's
+  purpose. No capabilities beyond env var reading and TTY detection are exercised.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `CHANGELOG.md`, `cliff.toml`, `Makefile.toml` were not read as they are not shipped
+    code (build/release tooling).
+  - The list of supported terminals may be incomplete (that's a feature gap, not a
+    security issue).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+gIEhjFH5HAvzAWb97rQ1wofVW_AVNp6ZrhZxi8nFflFR0xs5Al7IDEEEjDUoa0CzZR5pGes8TsNLgJq0BmRqDg
+----- END CREV PROOF -----
+
