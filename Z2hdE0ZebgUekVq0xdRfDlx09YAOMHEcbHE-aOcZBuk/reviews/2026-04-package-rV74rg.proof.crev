@@ -10059,3 +10059,123 @@ comment: |-
 CWNCGR6nPQP6qYFtDCoXRFwjQfZBfeqkLMNxyyGlbvbxxoa4ESWSvrqC3izLATOQHZGQNz63Rgjr7fj1J9ZWBA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: foldhash
+  version: 0.1.5
+  digest: snqLAzK4PNlgiZKu1fY7XCv11SFrvhLzLjJmYgSdMcU
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: foldhash 0.1.5
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/foldhash-0.1.5
+  - Upstream repository: https://github.com/orlp/foldhash
+  - Upstream commit verified: 42461756c3760f9165c90d9626a49e36980a1e47
+  - Upstream tag for version: v0.1.5
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `42461756c3760f9165c90d9626a49e36980a1e47` with
+  `path_in_vcs: ""`. This commit exists upstream and is the commit pointed to by the
+  `v0.1.5` tag. Commit message: "Version 0.1.5. (#27)". Both the sha and the version tag
+  agree.
+  
+  Recursive `diff -r --brief` between the crate tarball and the upstream checkout (excluding
+  expected-to-differ files: `Cargo.toml`, `Cargo.toml.orig`, `.cargo_vcs_info.json`,
+  `.cargo-ok`, `Cargo.lock`, `.gitignore`, plus excluded directories `benches/`, `tools/`,
+  `assets/`) produced **zero differences**. `Cargo.toml.orig` is bit-for-bit identical to
+  upstream `Cargo.toml`.
+  
+  **Conclusion:** Package matches public repo at commit `4246175` tagged `v0.1.5`. All
+  source files bit-for-bit identical.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** (680 LoC per `cargo crev verify`, 5 Rust source files;
+  small enough to read every file end-to-end.)
+  
+  **Claims baseline:** Crate claims to be "a fast, non-cryptographic, minimally
+  DoS-resistant hashing algorithm designed for computational uses such as hashmaps, bloom
+  filters, count sketching." Supports `no_std`. Two variants: `fast` (speed-optimized) and
+  `quality` (statistical quality). Zero runtime dependencies.
+  
+  ### File map
+  
+  - `src/lib.rs` (285 lines): **read in full** — module root, constants, `folded_multiply`, `rotate_right`, `hash_bytes_medium`, `hash_bytes_long`.
+  - `src/fast.rs` (271 lines): **read in full** — `FoldHasher` struct and `Hasher` impl, `RandomState`, `SeedableRandomState`, `FixedState`.
+  - `src/quality.rs` (175 lines): **read in full** — thin wrapper around `fast::FoldHasher` with extra mixing in `finish()`.
+  - `src/seed.rs` (268 lines): **read in full** — `SharedSeed`, `GlobalSeed`, per-hasher seed generation, global seed initialization with once-init pattern.
+  - `src/convenience.rs` (74 lines): **read in full** — type aliases `HashMap`/`HashSet`, extension traits `HashMapExt`/`HashSetExt`.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc macros**: None. Positive.
+  - **Dependencies**: Zero runtime dependencies. Dev-dependencies only (criterion, hashbrown, uuid, rand, ahash, fxhash, chrono). Positive.
+  - **FFI surface**: None. Positive.
+  - **`unsafe` blocks**: Three instances in `src/seed.rs`, all in the `#[cfg(target_has_atomic = "8")]` global seed module:
+    1. Line 179: `unsafe impl Sync for GlobalSeedStorage {}` — The `GlobalSeedStorage` contains `AtomicU8` (state) + `UnsafeCell<SharedSeed>` (seed). The `Sync` impl is justified by the state machine: the `UnsafeCell` is only written when `state` is `LOCKED` (exclusive via CAS from `UNINIT`), and only read when `state` is `INIT` (set via `Release` store after write, checked via `Acquire` load before read). This is a standard once-init pattern. **Sound.**
+    2. Lines 220-224: `*GLOBAL_SEED_STORAGE.seed.get() = seed` inside the `LOCKED` critical section — Write to the `UnsafeCell` occurs only after successful CAS `UNINIT -> LOCKED`, ensuring exclusive access. The `Release` store of `INIT` follows, establishing happens-before with any subsequent `Acquire` load of `INIT`. **Sound.**
+    3. Line 242: `&*GLOBAL_SEED_STORAGE.seed.get()` in `GlobalSeed::get()` — Read from the `UnsafeCell` occurs only after `GlobalSeed::new()` has confirmed the `INIT` state. The `Acquire` load in `new()` synchronizes with the `Release` store in `init_slow()`. The returned `&'static SharedSeed` is valid because `GLOBAL_SEED_STORAGE` is a static and the seed is never written again after `INIT`. **Sound.**
+  
+  ### Red-flag scan
+  
+  - No `transmute`, no raw pointer arithmetic.
+  - No `Command::new` or process spawning.
+  - No `std::env::var` or env access.
+  - No network libraries or I/O of any kind.
+  - No `include_bytes!` or `include_str!`.
+  - No obfuscated strings — the constants are hexadecimal digits of pi, well-known and verifiable.
+  - No `unwrap`/`expect` on untrusted input paths — the `unwrap()` calls in `hash_bytes_medium` and `hash_bytes_long` are on `try_into()` for fixed-size byte slices where the slice length is guaranteed by the chunking logic.
+  - Conditional compilation (`#[cfg(...)]`) is used for: 64-bit vs 32-bit multiply paths (performance), `std` vs `no_std` seed generation, `target_has_atomic` for global seed init. All straightforward and well-commented.
+  - `core::ptr::addr_of!` in `seed.rs:17` takes address of a local variable for ASLR entropy — no safety issue, just reading a stack address as a u64.
+  
+  ### Architecture summary
+  
+  The crate implements a folded-multiply hash with two tiers. The `fast` module provides `FoldHasher` implementing `core::hash::Hasher`, using a 128-bit sponge for small writes and chunked processing for byte slices. The `quality` module wraps `fast::FoldHasher` and applies an extra `folded_multiply` in `finish()` for better statistical distribution. Seed management uses ASLR + thread-local counters (or relaxed atomics in no_std) for per-hasher seeds, and a once-init global for the shared seed. The convenience module provides `HashMap`/`HashSet` type aliases with extension traits.
+  
+  ### Reconciliation against claims
+  
+  The crate does exactly what it claims: implements a non-cryptographic hash function for use in data structures. Capabilities exercised:
+  - Stack pointer reading (for ASLR entropy) — justified for seed randomization.
+  - `std::time::UNIX_EPOCH.elapsed()` (std feature only) — justified for seed entropy.
+  - `Box::new(0u8)` (std feature only) — justified for heap ASLR entropy.
+  - Thread-local state (std feature only) — justified for per-hasher seed uniqueness.
+  - Relaxed atomics (no_std path) — justified for per-hasher seed uniqueness.
+  
+  No network, no filesystem, no env vars, no processes, no FFI. All capabilities are justified by the stated purpose.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of `foldhash` at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  - The `unwrap()` calls in `hash_bytes_medium` (line 231: `right_to_left.next().unwrap()`) rely on the invariant that `rchunks_exact(16)` produces at least as many chunks as `chunks_exact(16)` for the same input — this is true because both use the same chunk size and the input is >= 16 bytes. The `try_into().unwrap()` calls are on slices guaranteed to be exactly 8 bytes by the chunking. All safe.
+  - The relaxed-ordering atomic in the no_std seed path (seed.rs:54-56) is intentionally racy per the comments. This is acceptable — the worst case is two threads getting the same nondeterminism value, which is mitigated by the stack-pointer mixing.
+  - Tests and benchmarks are excluded from the tarball (`exclude = ["benches", "tools", "assets"]`) — cannot verify test coverage from the published crate. This is noted but not a concern for the review.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+xxk7AviD16aG1S-9rV4mkQZYENf0jvCnJOsiZpDVnWrSzhCUVqbkOaCBI38PyQ1tYMbOnTGbW1GYWcNR2FQRDQ
+----- END CREV PROOF -----
+
