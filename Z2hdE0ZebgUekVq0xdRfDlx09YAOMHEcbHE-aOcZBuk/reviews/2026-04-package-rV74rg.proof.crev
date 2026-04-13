@@ -9852,3 +9852,115 @@ comment: |-
 TzUdM3-yVd35cxZOy3lOY4RfdH_KL6_5oxY_5oqobPRqKucLuBTyys4FOuGO14lfcjIjrct65JbDO5dqCOOVAw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T03:59:39+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: num-conv
+  version: 0.1.0
+  digest: 4lYypNbalgI1G3v-kxloe23nhwO6w0lDDdpOqi0xcF4
+review:
+  thoroughness: high
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: num-conv 0.1.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-conv-0.1.0
+  - Upstream repository: https://github.com/jhpratt/num-conv
+  - Upstream commit verified: b6606e5c451f5fb2bffc085a6d8d9530f3d44a48
+  - Upstream tag for version: v0.1.0
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` records sha `b6606e5c451f5fb2bffc085a6d8d9530f3d44a48`. Upstream
+  tag `v0.1.0` points at the same commit. `diff -r --brief` of `src/` shows zero differences.
+  `Cargo.toml.orig` vs upstream `Cargo.toml` shows zero differences. All source files and
+  the manifest are bit-for-bit identical.
+  
+  ## Code review findings
+  
+  **Thoroughness: high** — 330 lines total in a single file (`src/lib.rs`), every line read in full.
+  
+  ### Claims baseline
+  
+  The crate claims to provide type-safe integer conversion traits (`Extend`, `Truncate`,
+  `CastSigned`, `CastUnsigned`) as alternatives to `as` casts, with turbofish syntax support.
+  `#![no_std]`, zero dependencies, dual MIT/Apache-2.0 licensed. Author: Jacob Pratt (jhpratt),
+  maintainer of the `time` crate.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None. Positive.
+  - **Dependencies**: Zero (no `[dependencies]` section at all). Positive.
+  - **Proc-macro**: No. Positive.
+  - **`unsafe`**: Zero occurrences. Positive.
+  - **FFI**: None. Positive.
+  
+  ### Red-flag scan
+  
+  Scanned for: `unsafe`, `transmute`, `from_raw`, `Command`, `env::var`, `reqwest`, `include_bytes`,
+  base64 literals, obfuscated strings, `unwrap`/`panic!`, suspicious `#[cfg]`, `Drop` impls.
+  
+  Result: completely clean. No hits on any pattern.
+  
+  ### Architecture
+  
+  The crate defines four public traits on primitive integer types:
+  
+  1. **`CastSigned`** — same-size unsigned-to-signed (or signed identity) via `as` cast, with a
+     compile-time `size_of` assertion ensuring the source and target are the same size.
+  2. **`CastUnsigned`** — same-size signed-to-unsigned (or unsigned identity), same pattern.
+  3. **`Extend`** — widen to a same-or-larger integer, compile-time assertion `size_of::<From>() <= size_of::<To>()`.
+  4. **`Truncate`** — narrow to a same-or-smaller integer, compile-time assertion `size_of::<From>() >= size_of::<To>()`.
+  
+  All conversions use `self as _`, which is the standard Rust primitive cast. The compile-time
+  `const _: () = assert!(...)` blocks ensure that only valid size relationships compile. A `sealed`
+  module prevents external implementations.
+  
+  **Claims vs reality**: the code does exactly what it claims — provides type-checked integer
+  conversions with no I/O, no allocation, no unsafe, no side effects. The `#![no_std]` attribute
+  is correctly applied. No capabilities beyond pure computation.
+  
+  ### Per-file coverage
+  
+  - **src/lib.rs** (330 lines): **read in full**. Every line reviewed including all macro
+    expansions, trait definitions, and the exhaustive impl blocks for all integer types.
+  
+  ### Observations
+  
+  1. The `usize`/`isize` extend/truncate impls are conservative: `u8`/`u16` can extend to `usize`,
+     but `u32` cannot (because `usize` could be 16-bit in theory). Similarly `usize` can only
+     truncate to `usize`. This is a defensively correct design choice.
+  2. All four macros include compile-time size assertions, making invalid conversions a hard
+     compilation error rather than a runtime surprise. Good design.
+  3. Doctests cover the key conversion cases (MAX values, -1, 0).
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. The crate is a single 330-line file with no tests directory, no examples, no
+  build script. Everything was read in full.
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: high
+  - understanding: high
+----- SIGN CREV PROOF -----
+5wrOF9AqYoiKu0gvy3igW1jJDFyBV6yc6h8flkzp79Ml5nsNFtvLW712VDz59K-KK7XFPrBflQxBxfNCxPZkAA
+----- END CREV PROOF -----
+
