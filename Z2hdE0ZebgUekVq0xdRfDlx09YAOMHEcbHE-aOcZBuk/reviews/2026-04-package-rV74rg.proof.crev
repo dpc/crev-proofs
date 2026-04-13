@@ -9264,3 +9264,141 @@ comment: |-
 ou1BzSa6IHnaMBbKY-lyNa9XVg_i1AthJGp_ZgUrvGnNYK2YDQ5wBZDFOPWKuKy2pd3elyjLsW_wVTzO48yqBg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T03:21:03+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: adler2
+  version: 2.0.1
+  digest: xAuHDrz_SkzqnoJ6i6czhhdqKAADsTUBlNcl1EA_n5I
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: adler2 2.0.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/adler2-2.0.1
+  - Upstream repository: https://github.com/oyvindln/adler2
+  - Upstream commit verified: 89a031a0f42eeff31c70dc598b398cbf31f1680f
+  - Upstream tag for version: n/a (no tags in upstream repo)
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to be "a simple clean-room implementation of the Adler-32 checksum" with
+  zero dependencies, zero `unsafe`, no_std support, and decent performance (3-4 GB/s). It is
+  a fork of the archived `adler` crate by Jonas Schievink, maintained by oyvindln.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/oyvindln/adler2 at commit
+  89a031a0f42eeff31c70dc598b398cbf31f1680f (the sha from `.cargo_vcs_info.json`).
+  No version tags exist in the upstream repo. `Cargo.toml.orig` is bit-for-bit
+  identical to upstream's `Cargo.toml`. All other files (src/lib.rs, src/algo.rs,
+  README.md, CHANGELOG.md, LICENSE-*, RELEASE_PROCESS.md, benches/bench.rs) are
+  identical between the crate tarball and the upstream checkout. Only expected
+  crate-tarball-only files differ (Cargo.toml rewritten by cargo, .cargo_vcs_info.json,
+  .cargo-ok, Cargo.toml.orig present only in tarball).
+  
+  ## Code review findings
+  
+  **Thoroughness: medium** — 313 Rust LoC across 2 source files; both read in full.
+  
+  ### File map
+  
+  - `src/lib.rs` (288 lines including tests) — **read in full**
+  - `src/algo.rs` (156 lines) — **read in full**
+  - `benches/bench.rs` (110 lines) — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Dependencies**: Zero runtime dependencies (only `rustc-std-workspace-core` behind
+    the `rustc-dep-of-std` feature, which is only used when building as part of libstd).
+    Dev-dependency on `criterion` is commented out. Positive — matches "zero dependencies" claim.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **`unsafe`**: Zero. The crate uses `#![forbid(unsafe_code)]` at the crate level. Positive.
+  - **FFI**: None. Positive.
+  
+  ### Red-flag scan
+  
+  Searched for: `unsafe`, `transmute`, `from_raw`, `Command`, `env::var`, `reqwest`,
+  `include_bytes`, `include_str`, base64 literals, obfuscated strings.
+  
+  **No hits.** The crate is pure computation with no I/O (except the optional `std` feature
+  which provides `adler32<R: BufRead>` — a read-only convenience wrapper, justified by the
+  crate's purpose).
+  
+  ### Architecture summary
+  
+  The crate provides:
+  1. `Adler32` struct holding two `u16` accumulators (`a`, `b`), implementing `Default`,
+     `Hasher`, `Copy`, `Clone`, `Debug`.
+  2. `Adler32::write_slice(&mut self, bytes: &[u8])` — delegates to `compute()` in `algo.rs`.
+  3. `adler32_slice(data: &[u8]) -> u32` — convenience one-shot function.
+  4. `adler32<R: BufRead>(reader: R) -> io::Result<u32>` — streaming convenience (std only).
+  
+  The algorithm in `algo.rs` implements the standard Adler-32 checksum (MOD = 65521) with
+  a 4-way parallel unrolling optimization. The chunk size of 5552*4 is derived from the
+  mathematical constraint that prevents u32 overflow between modular reductions. The
+  `U32X4` helper type provides element-wise arithmetic operations for the 4-lane accumulator.
+  
+  ### Claims vs reality reconciliation
+  
+  - "Zero dependencies" — confirmed, no runtime deps.
+  - "Zero unsafe" — confirmed, `#![forbid(unsafe_code)]` enforced.
+  - "no_std support" — confirmed via `#![cfg_attr(not(feature = "std"), no_std)]`.
+  - "Adler-32 checksum" — confirmed, MOD=65521 is the correct Adler-32 modulus.
+  - The only I/O is `BufRead` consumption in the `adler32` function, gated behind `std`
+    feature. Justified by the crate's purpose.
+  - No capabilities exercised beyond what the crate claims.
+  
+  ### Algorithmic correctness notes
+  
+  - Initial state `a=1, b=0` matches Adler-32 spec.
+  - `from_checksum` correctly splits a u32 into low 16 (a) and high 16 (b) bits.
+  - The 4-way parallel reduction in `algo.rs` correctly recombines sub-sums:
+    `b_vec *= 4` accounts for the stride, and the subtraction of `a_vec` components
+    with weights `(0, 1, 2, 3)` using `MOD - a_vec[i]` (unsigned-safe subtraction)
+    correctly adjusts for the positional weighting within each 4-byte group.
+  - Final `% MOD` applied to both `a` and `b` before storing back as `u16`.
+  - Test vectors include Wikipedia's known example (0x11E60398 for "Wikipedia") and
+    various edge cases (zeros, ones, mixed, resume/incremental).
+  
+  ### Potential minor observations
+  
+  - `html_root_url` in lib.rs references `adler2/2.0.0` (not `2.0.1`) — cosmetic, does
+    not affect functionality. This is a stale docs URL from the release tooling.
+  - README.md still references old badges/links from the original `adler` crate — cosmetic.
+  - `U32X4::from(bytes: &[u8])` indexes bytes[0..3] without checking length, but it's
+    only called from `chunks_exact(4)` which guarantees exactly 4 bytes. Safe.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of adler2 at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. Both source files read in full, bench file read in full, all metadata
+  files inspected. The test module in lib.rs was read and cross-referenced against known
+  Adler-32 test vectors.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+aRlAT30IJZ4EK9RNH95vBukR-YI9O089qlgPfh4akmNQfKoEpg2J93YpXri_SwJL2eIqt98LdwF_DFzcyVTwBA
+----- END CREV PROOF -----
+
