@@ -11782,3 +11782,164 @@ comment: |-
 JFtttoGHz20QEwZjwS2caBV0omdb1u5r1K53Dnf1ywsH8jgJ5jCOvFrAfAt5HB7o5HoHBfs4PXbmhOC2Sp9MAQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: scopeguard
+  version: 1.2.0
+  digest: t87kqIssL7ujrUoay-x4lMTIScSTSYMvGTh1atp82FY
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: scopeguard 1.2.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/scopeguard-1.2.0
+  - Upstream repository: https://github.com/bluss/scopeguard
+  - Upstream commit verified: bb988222848d39b0b9037b29da3a3a1eb05ebf4b
+  - Upstream tag for version: v1.2.0
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/bluss/scopeguard at commit
+  `bb988222848d39b0b9037b29da3a3a1eb05ebf4b` tagged `v1.2.0`. The `.cargo_vcs_info.json`
+  sha matches the tag. Manifest differences: none — `Cargo.toml.orig` is identical to
+  upstream `Cargo.toml`. All other files are bit-for-bit identical. Only expected
+  tarball-only file (`Cargo.toml.orig`) differs in presence.
+  
+  ## Claims baseline
+  
+  The crate claims to be a RAII scope guard utility that runs a closure when a value
+  goes out of scope, even during unwinding from a panic. It provides three strategies:
+  `Always`, `OnUnwind`, and `OnSuccess`. It supports `no_std` (without the `OnUnwind`/
+  `OnSuccess` strategies). The crate claims no I/O, no network, no filesystem access,
+  no FFI, and no dependencies.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — the crate is small (~190 lines of non-test Rust code
+  in a single file) and can be read carefully end-to-end.
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full** (596 lines total, ~190 non-test, ~100 test)
+  - `examples/readme.rs` — **read in full** (30 lines)
+  - `Cargo.toml.orig` — **read in full**
+  - `README.md` — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: none present (positive).
+  - **Cargo.toml dependencies**: zero dependencies (positive). Only features are
+    `use_std` (default).
+  - **Proc-macro**: not a proc-macro crate (positive).
+  - **FFI surface**: none (positive).
+  - **Unsafe blocks**: 3 found, analyzed below.
+  
+  ### Unsafe analysis
+  
+  1. **`unsafe impl Sync for ScopeGuard`** (line 435-441):
+     `ScopeGuard` is `Sync` when `T: Sync`, regardless of whether `F: Sync`. This is
+     sound because the closure `F` is stored in a `ManuallyDrop` field and is never
+     exposed through `&ScopeGuard` — it is only consumed in `Drop::drop` (which takes
+     `&mut self`) or in `into_inner` (which consumes `self`). No shared reference can
+     reach `F`, so `Sync` for `F` is not required. The `PhantomData<fn(S) -> S>`
+     correctly prevents `S` from affecting auto-trait inference. Sound.
+  
+  2. **`into_inner`** (lines 360-368):
+     Uses `ptr::read` to move the value out of `ManuallyDrop`, then `ManuallyDrop::drop`
+     on the closure. The guard itself is wrapped in `ManuallyDrop` to prevent the
+     compiler from running `ScopeGuard::drop`. This is sound: `ptr::read` is valid
+     because `guard.value` is initialized and properly aligned (it's a field of a live
+     struct), and wrapping `guard` in `ManuallyDrop` prevents double-drop. The ordering
+     (read value first, then drop closure) is intentional — if the closure's destructor
+     panics, the value is already moved out and will be dropped during unwinding. Sound.
+  
+  3. **`Drop::drop`** (line 473):
+     Uses `ptr::read` on both `self.value` and `self.dropfn` to move values out of
+     `ManuallyDrop` fields. This is sound because `Drop::drop` runs exactly once and
+     the fields are `ManuallyDrop`, so the compiler will not drop them again. After
+     `ptr::read`, the values are owned locally and will be dropped normally (or consumed
+     by `dropfn(value)`). If `S::should_run()` returns false, both `value` and `dropfn`
+     are dropped normally (not leaked). Sound.
+  
+  ### Red-flag scan
+  
+  - No `transmute`, `from_raw`, raw pointer arithmetic.
+  - No `std::process::Command`, shell invocation.
+  - No `std::env::var`, environment variable access.
+  - No network libraries.
+  - No `include_bytes!`, `include_str!`.
+  - No base64/hex blobs, obfuscated strings.
+  - No suspicious `#[cfg]` conditionals — only `feature = "use_std"` and `test`.
+  - No `Drop` impl side effects beyond the intended scope guard behavior.
+  
+  ### Architecture summary
+  
+  The crate defines a single generic struct `ScopeGuard<T, F, S>` parameterized by a
+  value type, closure type, and strategy type. Three strategy types (`Always`, `OnUnwind`,
+  `OnSuccess`) implement the `Strategy` trait. The guard stores the value and closure in
+  `ManuallyDrop` fields and uses `ptr::read` in `Drop` to move them out for conditional
+  execution. Three convenience macros (`defer!`, `defer_on_success!`, `defer_on_unwind!`)
+  create guards with unit values. The `Deref`/`DerefMut` impls allow transparent access
+  to the guarded value. `into_inner` allows defusing the guard.
+  
+  ### Claims vs. reality reconciliation
+  
+  - Claims RAII scope guard with closure on drop — confirmed, that's exactly what
+    `ScopeGuard` does.
+  - Claims `no_std` support — confirmed, `#![cfg_attr(not(any(test, feature = "use_std")), no_std)]`
+    and `extern crate core as std` make all non-strategy code work without std.
+  - Claims `OnUnwind`/`OnSuccess` require `use_std` — confirmed, they use
+    `std::thread::panicking()` which requires std.
+  - No capabilities exercised beyond what is claimed. No I/O, no network, no filesystem,
+    no env vars, no processes, no FFI.
+  
+  ## Cross-check against existing reviews
+  
+  Two prior reviews exist, both by the user (FYlr8YoYGVvDwHQxqEIs89reKKDy-oWisoO0qXXEfHE):
+  
+  1. **v0.3.3** — low thoroughness, medium understanding, positive rating. No comment.
+  2. **v1.0.0** — low thoroughness, low understanding, positive rating. Comment: "No
+     malicious code. The `unsafe` parts seems sane, but they could use a review by
+     someone more confident with `unsafe`."
+  
+  Agreement: both prior reviews found the crate clean with no malicious code, consistent
+  with my findings. The v1.0.0 review flagged `unsafe` as needing deeper analysis — this
+  review provides that analysis and finds all three unsafe blocks sound.
+  
+  Changes since v1.0.0: `into_inner` now uses `ManuallyDrop` instead of `mem::forget`
+  (cleaner but semantically equivalent), and `#[must_use]` was added to guard constructors.
+  These are minor improvements, no new risk.
+  
+  Verdict: prior reviews do not change my proposed rating. I can provide the deeper unsafe
+  analysis that the v1.0.0 review noted was needed.
+  
+  ## Open questions / things skipped
+  
+  - Tests were read but not deeply analyzed for correctness — they exercise the main
+    code paths and appear consistent with the crate's behavior.
+  - The `examples/readme.rs` was read; it demonstrates basic usage and is harmless.
+  - Nothing was skipped.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+h7TUgMGv6sH3Y-UOQ7VVRDKaxsph7YYEaJztkTV7llA4fc9qRXFZkzeq8OOeN4pS4iUPg83TU_DNOk9zL42SCw
+----- END CREV PROOF -----
+
