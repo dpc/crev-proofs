@@ -10744,3 +10744,128 @@ comment: |-
 xO-D4HCyFHJv6rrVJNhsd_5liSSOG5BEd3KoECCBllan2SZEE9Ehy-LaQ2l8t6k8-mtXpxlXvie2QMkRpM01Dw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T04:08:00.573423027+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: dbl
+  version: 0.3.2
+  digest: KxAlvwMu_4xjvbaH5bJh4C_vwAZOPH06bdWbMol3kso
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: dbl 0.3.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dbl-0.3.2
+  - Upstream repository: https://github.com/RustCrypto/utils
+  - Upstream commit verified: b32928fceec970be4579fcc2d06b2bf3e307ff47
+  - Upstream tag for version: dbl-v0.3.2
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to implement the "double" operation in Galois Field (GF) — a
+  primitive used in block cipher modes like CMAC and SIV. It is a `#![no_std]`
+  library with a single dependency (`generic-array`). It should perform only pure
+  math on byte arrays with no I/O, no networking, no unsafe code, and no build
+  script.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/RustCrypto/utils at commit
+  `b32928fceec970be4579fcc2d06b2bf3e307ff47`, which is the commit tagged as
+  `dbl-v0.3.2`. Both `.cargo_vcs_info.json` sha and the tag agree. `diff -r
+  --brief` (excluding expected cargo-only files) reports zero differences. Manifest
+  diff between `Cargo.toml.orig` and upstream `Cargo.toml` is empty — files are
+  identical.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** (bordering high). Justification: the crate
+  consists of a single 175-line Rust file; it can be read carefully end-to-end.
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**, careful line-by-line analysis.
+  - `Cargo.toml` / `Cargo.toml.orig` — **read in full**.
+  - `LICENSE-APACHE`, `LICENSE-MIT` — noted present, not code-reviewed.
+  
+  ### Non-negotiable checks
+  
+  - **`build.rs`**: absent. Positive.
+  - **`unsafe`**: `#![forbid(unsafe_code)]` at crate level (line 8). No unsafe
+    blocks anywhere. Positive.
+  - **Proc-macro**: not a proc-macro crate. Positive.
+  - **FFI**: none. Positive.
+  - **Dependencies**: only `generic-array = "0.14"` — a well-known RustCrypto
+    utility for fixed-size arrays. Appropriate for the crate's purpose. No
+    surprise dependencies.
+  
+  ### Red-flag scan
+  
+  - No `std::process::Command`, no env var access, no network calls, no
+    `include_bytes!`, no base64 blobs, no obfuscated strings.
+  - No `unwrap`/`expect` on untrusted input paths. The `try_into().unwrap()` calls
+    at lines 69–70, 89–90, 114–117, 144–147 convert fixed-size slices (`[..8]`,
+    `[8..]`, etc.) to `[u8; 8]`. These are infallible because the slice lengths are
+    compile-time guaranteed by `GenericArray<u8, U16>` / `U32` sizing. Not a
+    concern.
+  - No conditional compilation (`#[cfg]`).
+  - No `Drop` impls.
+  
+  ### Architecture summary
+  
+  The crate defines a single trait `Dbl` with two methods (`dbl` and `inv_dbl`) and
+  implements it for `GenericArray<u8, U8>`, `GenericArray<u8, U16>`, and
+  `GenericArray<u8, U32>` — corresponding to 64-bit, 128-bit, and 256-bit block
+  sizes.
+  
+  Each implementation:
+  1. Converts the byte array to big-endian `u64` words.
+  2. Performs a left-shift-by-1 (for `dbl`) or right-shift-by-1 (for `inv_dbl`),
+     propagating carry bits between words.
+  3. XORs with the reduction polynomial constant (`C64`, `C128`, or `C256`)
+     conditional on the overflow/underflow bit. The conditional is implemented as
+     multiplication by 0 or 1 (branchless).
+  
+  The constants `C64 = 0b1_1011`, `C128 = 0b1000_0111`, `C256 =
+  0b100_0010_0101` are the standard irreducible polynomial feedback terms for
+  GF(2^64), GF(2^128), and GF(2^256) respectively, matching NIST SP 800-38B
+  (Table 2 for 128-bit) and related standards.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims: pure GF doubling math, no_std, no unsafe. Reality: confirmed. The code
+    does exactly what it says — bitwise operations on fixed-size byte arrays.
+  - No capabilities exercised beyond pure computation. No I/O, no allocation
+    (beyond stack), no environment interaction.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. The entire crate is a single 175-line file that was read in full
+  with line-by-line analysis. All non-negotiable checks completed.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+e9n_fDqT2X6FPBv-olSHNos4d97USDeI-7STOwgitoZuXiq1bDIdXynPKj2PSBWf3yNMKIBMHbiLNjbon0TUCg
+----- END CREV PROOF -----
+
