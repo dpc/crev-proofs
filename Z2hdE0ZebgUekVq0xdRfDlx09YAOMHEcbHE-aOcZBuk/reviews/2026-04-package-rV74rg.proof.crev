@@ -10179,3 +10179,227 @@ comment: |-
 xxk7AviD16aG1S-9rV4mkQZYENf0jvCnJOsiZpDVnWrSzhCUVqbkOaCBI38PyQ1tYMbOnTGbW1GYWcNR2FQRDQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T03:42:33+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: thread_local
+  version: 1.1.9
+  digest: lKFRtHd5qOEqvbVQ5oLR1-EupNWuSlFAg0kXsyGygcY
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: thread_local 1.1.9
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thread_local-1.1.9
+  - Upstream repository: https://github.com/Amanieu/thread_local-rs
+  - Upstream commit verified: 4b7cc0f30b81b768fafc4b0ef4d541bfc94a0433
+  - Upstream tag for version: v1.1.9
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `4b7cc0f30b81b768fafc4b0ef4d541bfc94a0433`.
+  This sha exists in the upstream repository and corresponds to the `v1.1.9` tag.
+  The commit message is "chore: release v1.1.9".
+  
+  `diff -r --brief` between the crate tarball and the upstream checkout at this commit
+  shows no differences (excluding expected-to-differ files: `.git`, `Cargo.toml`,
+  `.cargo_vcs_info.json`). `Cargo.toml.orig` is identical to the upstream `Cargo.toml`.
+  
+  All source files are bit-for-bit identical between the crate tarball and the upstream
+  repository at the tagged commit.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** (788 Rust LoC per verify output; read every file end-to-end.)
+  
+  **Claims baseline:** The crate provides per-object thread-local storage via a `ThreadLocal<T>`
+  type. Each thread gets its own copy of `T`, stored in a lock-free data structure indexed by
+  thread ID. The crate also supports iteration over all threads' values. It has a `nightly`
+  feature for using the `#[thread_local]` attribute. No network, filesystem, env var, or
+  subprocess usage is expected.
+  
+  ### File map
+  
+  - `src/lib.rs` (684 lines): **read in full** — main `ThreadLocal<T>` type, `Entry<T>`,
+    bucket allocation/deallocation, iterators (`Iter`, `IterMut`, `IntoIter`, `RawIter`),
+    tests.
+  - `src/thread_id.rs` (211 lines): **read in full** — `ThreadIdManager` (allocates/recycles
+    thread IDs via a `Mutex<BinaryHeap>`), `Thread` struct (maps thread ID to bucket/index),
+    `get()` fast path with TLS, `ThreadGuard` for cleanup on thread exit.
+  - `src/cached.rs` (162 lines): **read in full** — deprecated `CachedThreadLocal<T>` wrapper,
+    thin delegation to `ThreadLocal<T>`.
+  - `src/unreachable.rs` (57 lines): **read in full** — `UncheckedOptionExt` and
+    `UncheckedResultExt` traits providing `unchecked_unwrap` via `unreachable_unchecked()`.
+  - `Cargo.toml.orig`: **read in full** — single dependency: `cfg-if = "1.0.0"`.
+  - `README.md`: **read in full**.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc macros**: None. Positive.
+  - **Dependencies**: Only `cfg-if` (well-known, trivial conditional compilation macro).
+    Fully justified for gating the `nightly` feature's `#[thread_local]` code path. No
+    surprising dependencies.
+  - **FFI surface**: None. Positive.
+  - **`unsafe` blocks**: Numerous — this is a low-level concurrent data structure. Enumerated
+    and analyzed below.
+  
+  ### Unsafe analysis
+  
+  1. **`lib.rs:120-125` — `Entry<T>::drop`**: Conditionally drops the inner `MaybeUninit<T>`
+     value via `ptr::drop_in_place` when `present` is true. Sound: `present` is only set to
+     true after the value is fully written (line 263, with `Release` ordering), and `drop` is
+     only called when the `Entry` is being deallocated (exclusive access via `&mut self`/
+     `Drop`). The `get_mut()` call on `AtomicBool` is valid because `Drop` has `&mut self`.
+  
+  2. **`lib.rs:129` — `unsafe impl Sync for ThreadLocal<T>`**: Sound: `T: Send` is required,
+     and all shared access to entries goes through atomic operations. The bucket pointers are
+     `AtomicPtr` with proper `Acquire`/`Release` ordering. Values are only written once per
+     entry (by the owning thread) and read through shared references after the `present` flag
+     is set.
+  
+  3. **`lib.rs:159` — `mem::transmute` in `new()`**: Transmutes `[*mut Entry<T>; BUCKETS]`
+     to `[AtomicPtr<Entry<T>>; BUCKETS]`. Sound: `AtomicPtr<T>` has the same representation
+     as `*mut T` (guaranteed by the standard library). This is done to initialize the array
+     in a `const fn` context where `AtomicPtr::new()` in array init is awkward.
+  
+  4. **`lib.rs:178` — `mem::transmute` in `with_capacity()`**: Same transmute as above. Sound
+     for the same reason.
+  
+  5. **`lib.rs:217` — `get_unchecked` in `get_inner()`**: Accesses `self.buckets[thread.bucket]`
+     without bounds check. Sound: `thread.bucket` is computed in `Thread::new()` as
+     `POINTER_WIDTH - leading_zeros(id+1) - 1`, which for any valid `id` (< `usize::MAX`)
+     produces a value in `0..POINTER_WIDTH-1 = 0..BUCKETS`. The bucket array has `BUCKETS`
+     elements.
+  
+  6. **`lib.rs:222-228` — pointer arithmetic in `get_inner()`**: `bucket_ptr.add(thread.index)`
+     indexes into the allocated bucket. Sound: `thread.index = id - (bucket_size - 1)` which
+     is always `< bucket_size`, and the bucket was allocated with exactly `bucket_size` entries.
+     The `present` load with `Relaxed` ordering is acceptable here because the entry can only
+     be written by the same thread (thread IDs are unique to live threads), and the bucket
+     pointer load used `Acquire` which synchronizes with the `Release` store in `insert`.
+  
+  7. **`lib.rs:233-267` — `insert()`**: Uses `get_unchecked` (same argument as #5), CAS on
+     the bucket pointer (standard lock-free pattern), then writes the value and sets `present`
+     with `Release` ordering. Sound: the entry at `thread.index` is only written by the thread
+     that owns that ID, so there's no data race on the `UnsafeCell` write.
+  
+  8. **`lib.rs:374-383` — `RawIter::next()`**: `get_unchecked` on buckets (bounded by
+     `self.bucket < BUCKETS` loop condition), pointer arithmetic on bucket entries (bounded
+     by `self.index < self.bucket_size`). Sound.
+  
+  9. **`lib.rs:401-406` — `RawIter::next_mut()`**: Similar to `next()` but with `&mut`.
+     Sound: called only from `IterMut` which holds `&mut ThreadLocal`, guaranteeing exclusive
+     access.
+  
+  10. **`lib.rs:431` — `size_hint_frozen()`**: Reads `AtomicUsize` through a raw pointer cast
+      to `*const usize`. Sound: `AtomicUsize` has the same layout as `usize`, and this is
+      called from `IterMut`/`IntoIter` which have exclusive access, so no concurrent writes.
+  
+  11. **`lib.rs:466` — `IterMut::next()`**: Converts `Entry` reference to `&mut T` via
+      `UnsafeCell::get()` and `MaybeUninit::as_mut_ptr()`. Sound: the entry's `present` flag
+      was checked, and `&mut ThreadLocal` guarantees no concurrent access.
+  
+  12. **`lib.rs:497` — `IntoIter::next()`**: Moves value out of `MaybeUninit` via
+      `mem::replace` + `assume_init`. Sound: `present` was checked and is set to `false`
+      to prevent double-drop.
+  
+  13. **`lib.rs:509-522` — `allocate_bucket`/`deallocate_bucket`**: Standard `Box::into_raw`/
+      `Box::from_raw` pattern. Sound: allocation and deallocation use the same size, and
+      `deallocate_bucket` is only called when the bucket is being freed (in `Drop` with
+      `&mut self`, or in the CAS failure path in `insert` where the bucket was just allocated
+      by the current thread and never shared).
+  
+  14. **`unreachable.rs` — `unchecked_unwrap` family**: Uses `unreachable_unchecked()` for
+      cases that "should never happen". Sound when the caller's invariant holds. Used in
+      `get_or()` where the closure always returns `Ok`, so the `Err` branch is truly
+      unreachable.
+  
+  15. **`thread_id.rs:87,104,113,124-126` (nightly path)**: Uses `#[thread_local] static mut`
+      for the fast path. Sound: `#[thread_local]` statics are per-thread, and the `static mut`
+      is only accessed from the owning thread (via `get()` on the current thread).
+  
+  ### Reconciliation against claims
+  
+  The crate does exactly what it claims: per-object thread-local storage. Capabilities exercised:
+  
+  - `std::sync::Mutex` — justified, used for thread ID allocation (not on the hot path).
+  - `std::sync::atomic::*` — justified, lock-free concurrent data structure.
+  - `UnsafeCell`, `MaybeUninit`, raw pointer arithmetic — justified, core of the lock-free
+    implementation.
+  - `thread_local!` macro — justified, stores thread ID.
+  - `BinaryHeap` — justified, efficiently recycles thread IDs.
+  
+  No capabilities beyond what the stated purpose requires. No network, filesystem, env var,
+  subprocess, or FFI usage.
+  
+  ### Red-flag scan
+  
+  - No `transmute` beyond the `AtomicPtr` array initialization (analyzed above).
+  - No `Command::new` or process spawning.
+  - No `std::env::var` or env access.
+  - No network libraries.
+  - No `include_bytes!` or `include_str!`.
+  - No obfuscated strings or binary blobs.
+  - No `extern "C"` or FFI.
+  - `cfg_if::cfg_if!` used to gate nightly vs stable code paths — reviewed both branches,
+    behavior differs only in TLS implementation strategy, not in logic.
+  
+  ### Architecture summary
+  
+  The crate uses a bucket-array design where each bucket `i` has `2^i` entries, giving
+  geometric growth. Thread IDs are mapped to (bucket, index) pairs using leading-zeros
+  arithmetic. Buckets are lazily allocated via CAS, making `ThreadLocal::new()` a const fn
+  with zero allocation. Thread IDs are managed by a global `Mutex<ThreadIdManager>` that
+  recycles IDs from exited threads via a min-heap. The `nightly` feature uses
+  `#[thread_local]` for a faster TLS fast path; the stable path uses `thread_local!` with
+  `Cell<Option<Thread>>`.
+  
+  ### Minor observations
+  
+  - The `unreachable.rs` module reimplements what `Option::unwrap_unchecked` and
+    `Result::unwrap_unchecked` provide since Rust 1.58. With MSRV 1.63, the standard
+    library versions could be used instead. Not a correctness issue.
+  - `CachedThreadLocal` is deprecated since 1.1.0 and is a pure thin wrapper. No concerns.
+  - The `size_hint` for `Iter` returns `(lower, None)` because concurrent insertion could
+    increase the count. The "frozen" variant for `IterMut`/`IntoIter` returns an exact size,
+    which is correct since they have exclusive access.
+  - `Entry::drop` uses `get_mut()` on `AtomicBool` rather than `load()` — this is correct
+    and more efficient since `Drop` has `&mut self`.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `benches/` directory: present in tarball but not reviewed (benchmark code, not shipped
+    in the library).
+  - LICENSE files: not reviewed in detail (standard MIT and Apache-2.0).
+  - The `cfg-if` dependency was not reviewed itself — it is a trivial, widely-used crate.
+  - Miri testing: the test suite includes a `miri_iter_soundness_check` test, suggesting
+    the author runs Miri. This is a positive signal for soundness but was not independently
+    verified.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+MlKWhPMLwtp0Ho_sSUsycluf56poufN9C5d55uP9IHW2cvICnUHuCX1hT1ozXbZmmrnsILBmoXm2Y56HOBstCg
+----- END CREV PROOF -----
+
