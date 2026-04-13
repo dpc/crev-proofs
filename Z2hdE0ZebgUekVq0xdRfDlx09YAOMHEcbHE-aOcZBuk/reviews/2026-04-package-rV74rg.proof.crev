@@ -11100,3 +11100,111 @@ comment: |-
 yOKWGLgrs0-jGIa5JRFlEmDT-uJ7H_Vjza5MxicNMYWaXSt16xFpBHSdKmgJg03f2eoywEbANzj8S5aQYDtLAA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T04:19:53+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: fnv
+  version: 1.0.7
+  digest: zwIq6L987JORpY7sKIs9-cy-JSgFIiQXkccFGzvKZyM
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: fnv 1.0.7
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fnv-1.0.7
+  - Upstream repository: https://github.com/servo/rust-fnv
+  - Upstream commit verified: 4b4784ebfd3332dc61f0640764d6f1140e03a9ab
+  - Upstream tag for version: v1.0.7 (annotated tag, peels to the same commit)
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to provide an implementation of the Fowler-Noll-Vo (FNV-1a) hash function as a
+  `std::hash::Hasher`, optimized for small hash keys. It provides type aliases `FnvHashMap` and
+  `FnvHashSet` for convenience. It supports `no_std` via a feature flag.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/servo/rust-fnv at commit
+  `4b4784ebfd3332dc61f0640764d6f1140e03a9ab`, tagged `v1.0.7` (annotated tag peels to same sha
+  as `.cargo_vcs_info.json`). All non-metadata files are bit-for-bit identical.
+  `Cargo.toml.orig` is identical to upstream `Cargo.toml`. No differences found.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — the crate is a single 367-line file, small enough to read
+  end-to-end carefully.
+  
+  ### File map
+  
+  - `lib.rs` (367 lines): **read in full**
+  - `Cargo.toml.orig`: **read in full**
+  - `README.md`: not read (documentation only, not executable)
+  - `LICENSE-APACHE`, `LICENSE-MIT`: not read (license files)
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: none present (positive).
+  - **proc-macro**: not a proc-macro crate (positive).
+  - **unsafe blocks**: zero `unsafe` blocks found via grep (positive).
+  - **FFI surface**: none (positive).
+  - **Dependency list**: zero dependencies in `Cargo.toml`. The crate only uses `std`/`core`.
+    This is exactly what you'd expect for a simple hash function (positive).
+  
+  ### Red-flag scan
+  
+  Searched for: `unsafe`, `transmute`, `from_raw`, `Command::new`, `std::process`,
+  `std::env::var`, `reqwest`, `ureq`, `hyper`, `include_bytes`, `include_str!`, `proc_macro`.
+  Zero hits.
+  
+  ### Architecture summary
+  
+  The crate is minimal: a single struct `FnvHasher(u64)` implementing `Default` (with the
+  standard FNV offset basis `0xcbf29ce484222325`) and `Hasher`. The `write` method implements
+  FNV-1a: XOR each byte into the hash, then multiply by the FNV prime `0x100000001b3` using
+  `wrapping_mul`. `finish` returns the internal state. Three type aliases (`FnvBuildHasher`,
+  `FnvHashMap`, `FnvHashSet`) provide convenience wrappers around std collections. The `std`
+  feature (default) gates the HashMap/HashSet aliases; with `no_std`, only the hasher and
+  builder are available.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims to implement FNV hash: confirmed, the constants match the published FNV-1a spec.
+  - Claims to be efficient for small keys: the algorithm is O(n) per byte with no setup cost,
+    consistent with this claim.
+  - No network access, no filesystem access, no process spawning, no env var reading, no unsafe,
+    no FFI. The crate does exactly what it claims and nothing more.
+  - The test suite (lines 139-367) contains the official FNV test vectors from Landon Curt Noll's
+    reference page, providing strong confidence that the implementation is correct.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version found in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  - `README.md` was not read; it is documentation only and not executable.
+  - License files were not read.
+  - No other files or concerns remain unexamined.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+7rCJLznc9XGU1UQeOObm8wJpr69cKGL1vd2gR3yDPoZN3OfwbOPmUTiCoJA_fix6IBut5_ZEL_L2HlIH7ia0AA
+----- END CREV PROOF -----
+
