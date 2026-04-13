@@ -9565,3 +9565,133 @@ comment: |-
 U-0YWBV5m9HnpNAB9Ck19ZylY2NZaw4Hv-d_YyndpwNIYeeB-n2hVIJ3x5H1S23SXwWJXTZUDSRhbfPOl8H2AA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-11T18:30:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: supports-unicode
+  version: 3.0.0
+  digest: cULMSH6YgiSzGIe8yoJypULRQpCLaHW3VtMHJg3UErQ
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: supports-unicode 3.0.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/supports-unicode-3.0.0
+  - Upstream repository: https://github.com/zkat/supports-unicode
+  - Upstream commit verified: f886c823e6f4b5760171fbafcbe42ede41e26d6c
+  - Upstream tag for version: v3.0.0
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` records sha `f886c823e6f4b5760171fbafcbe42ede41e26d6c` with
+  `path_in_vcs: ""`. The upstream repo's `v3.0.0` tag points to exactly this commit.
+  Both methods agree.
+  
+  `diff -r --brief` between the crate tarball and upstream (excluding expected files:
+  `.cargo_vcs_info.json`, `.cargo-ok`, `Cargo.toml`, `.gitignore`, `.jj`) shows
+  **zero differences**. `Cargo.toml.orig` is **identical** to upstream `Cargo.toml`.
+  
+  Package matches public repo https://github.com/zkat/supports-unicode at commit
+  `f886c823e6f4b5760171fbafcbe42ede41e26d6c` tagged `v3.0.0`. All files bit-for-bit identical.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — 53 LoC Rust in a single file; small enough to read
+  carefully end-to-end.
+  
+  **Claims baseline:** Crate claims to detect whether a terminal supports unicode rendering.
+  Port of Node.js packages `is-unicode-supported` and `has-unicode`. Should only inspect
+  environment variables and TTY status. No filesystem, network, process spawning, or unsafe
+  code expected.
+  
+  ### File map
+  
+  - `src/lib.rs` (52 lines): **read in full**
+  - `Cargo.toml.orig` (12 lines): **read in full**
+  - `README.md` (24 lines): **read in full**
+  - `CHANGELOG.md`: **read in full (red-flag scan only)** — contains version history, no code
+  - `cliff.toml`: **read in full (red-flag scan only)** — git-cliff changelog config
+  - `.editorconfig`: **read in full (red-flag scan only)** — editor settings
+  - `.github/`: **not read** — CI config, not shipped code
+  - `Makefile.toml`: **read in full (red-flag scan only)** — cargo-make tasks for changelog/release
+  - `LICENSE`: **not read** — Apache-2.0 license text
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Dependencies**: Zero runtime dependencies. Positive.
+  - **Proc macros**: None. Positive.
+  - **`unsafe` blocks**: Zero. Positive.
+  - **FFI surface**: None. Positive.
+  
+  ### Red-flag scan
+  
+  - No `unsafe`, `transmute`, raw pointers.
+  - No `Command::new` or process spawning.
+  - `std::env::var` used — **justified**: reading `CI`, `WT_SESSION`, `ConEmuTask`,
+    `TERM_PROGRAM`, `TERM`, `LC_ALL`, `LC_CTYPE`, `LANG`. These are exactly the environment
+    variables needed to detect unicode support in various terminals. No exfiltration risk —
+    values are only compared locally, never sent anywhere.
+  - `std::io::IsTerminal` used — **justified**: checking if stdout/stderr is a TTY.
+  - No network libraries, no `include_bytes!`, no obfuscated strings, no binary blobs.
+  - No `unwrap`/`expect`/`panic!` on untrusted input — only `unwrap_or_else` with empty string
+    default on env var reads.
+  - No conditional compilation beyond `std::env::consts::OS == "windows"` runtime check.
+  
+  ### Architecture summary
+  
+  Two public entry points:
+  1. `on(stream: Stream) -> bool` — if the stream is not a TTY (piped), returns `true`
+     (unicode is safe in pipes); otherwise delegates to `supports_unicode()`.
+  2. `supports_unicode() -> bool` — on Windows, checks a set of known terminal-indicating
+     env vars (CI, WT_SESSION, ConEmuTask, TERM_PROGRAM, TERM). On Linux kernel console
+     (`TERM=linux`), returns `false`. Otherwise checks locale env vars (`LC_ALL` / `LC_CTYPE` /
+     `LANG`) for UTF-8 suffix.
+  
+  Internal helper `is_a_tty(stream)` uses `std::io::IsTerminal` (stabilized in Rust 1.70,
+  matching the MSRV).
+  
+  ### Reconciliation against claims
+  
+  The crate does exactly what it claims: detects unicode support via env vars and TTY checks.
+  Capabilities exercised:
+  - Environment variable reads: justified, this is the core detection mechanism.
+  - TTY detection via `IsTerminal`: justified, needed to distinguish piped vs terminal output.
+  - No other capabilities. No filesystem, no network, no processes, no FFI, no unsafe.
+  
+  No capability exceeds the stated purpose.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `.github/` directory: not reviewed (CI workflow files, not shipped as library code).
+  - The heuristic for unicode support is inherently incomplete — some terminals may be
+    misdetected. This is a correctness limitation, not a security concern.
+  - `on()` returning `true` for non-TTY streams is an opinionated default (assumes piped
+    output can handle unicode). Documented behavior, not a bug.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+VMjj1wpEfN_rOpTi9SPagb15Fe3YqFQj_OwO8bGc1NJwNcPveGg94zXNaIM4z-PVvPT_1rc-dStAgbr18NohAg
+----- END CREV PROOF -----
+
