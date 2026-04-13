@@ -11473,3 +11473,156 @@ comment: |-
 s2xu4iLZVBWwmaT9bJhay6rsTgdzvTGosf1-EtennQf0VJH_fHp3VCPPn9NkuGPL4ABmPcWSk46lkz4gm17yCw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T04:29:46.138883406+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: shell-words
+  version: 1.1.0
+  digest: 0u1jsLTezsA2NjKE_Di_4JI78sAok9gRd3T4UoVI_pg
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: shell-words 1.1.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shell-words-1.1.0
+  - Upstream repository: https://github.com/tmiasko/shell-words
+  - Upstream commit verified: 045e4dccd2478ccc8bfa91bd0fe449dfe5473496
+  - Upstream tag for version: v1.1.0 (points to same commit)
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to split and join command line strings according to POSIX shell
+  parsing rules (quote removal only — no expansions, no operators). It provides
+  three public functions: `split`, `quote`, and `join`. It supports `no_std` via
+  an optional `std` feature (default on).
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/tmiasko/shell-words at commit
+  `045e4dccd2478ccc8bfa91bd0fe449dfe5473496`, tagged `v1.1.0`. Both the
+  `.cargo_vcs_info.json` sha and the git tag agree. All files are bit-for-bit
+  identical between the crates.io tarball and the upstream checkout (excluding
+  expected crate-only files). Manifest `Cargo.toml.orig` is identical to
+  upstream `Cargo.toml`.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — the crate is a single 507-line file (including
+  tests), small enough to read carefully end-to-end.
+  
+  ### File map
+  
+  - `src/lib.rs` (507 lines) — **read in full**
+  - `Cargo.toml.orig` — **read in full**
+  - `README.md` — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present (positive).
+  - **proc-macro**: Not a proc-macro crate (positive).
+  - **unsafe**: `#![forbid(unsafe_code)]` at line 12 — no unsafe anywhere (positive).
+  - **FFI surface**: None.
+  - **Dependencies**: Zero runtime dependencies. Only `std`/`core`/`alloc` from the
+    standard library. The `std` feature is default-on and enables `std::error::Error`
+    impl; the `no_std` path uses `alloc`. This is consistent with the crate's claim
+    of being a pure parsing library.
+  
+  ### Architecture summary
+  
+  The crate implements a straightforward state machine parser for POSIX shell word
+  splitting. The `split` function iterates over characters maintaining a `State`
+  enum with 8 variants (Delimiter, Backslash, Unquoted, UnquotedBackslash,
+  SingleQuoted, DoubleQuoted, DoubleQuotedBackslash, Comment). State transitions
+  match the POSIX spec for quote removal. The `quote` function implements the
+  reverse — escaping strings for shell safety using single-quote wrapping with
+  backslash escapes for embedded single quotes. The `join` function maps `quote`
+  over an iterator and space-joins the results.
+  
+  ### Claims vs reality reconciliation
+  
+  - The crate claims pure parsing with no I/O, no expansions, no operators — **confirmed**.
+    The code only operates on `&str` input, produces `Vec<String>` / `String` / `Cow<str>`
+    output, and performs no system calls of any kind.
+  - The crate claims POSIX shell compatibility for quote removal — the state machine
+    covers single quotes, double quotes, backslash escaping (including the POSIX-specified
+    special characters `$`, backtick, `"`, `\` inside double quotes at line 210), line
+    continuations, and `#` comments. This appears correct.
+  - No unexpected capabilities found (no network, no filesystem, no env access, no
+    process spawning outside of doc-comment examples).
+  
+  ### Detailed findings
+  
+  1. **Line 210**: Double-quoted backslash handling correctly implements POSIX: backslash
+     retains escape meaning only before `$`, backtick, `"`, `\`, and newline. All other
+     characters get the literal backslash preserved. Correct.
+  
+  2. **Line 261**: The `escape_style` function includes `˜` (U+02DC, small tilde) rather
+     than `~` (U+007E, ASCII tilde) in the special characters list. This is a minor bug —
+     shell tilde expansion uses ASCII `~`, not the Unicode small tilde. In practice this
+     means strings containing ASCII `~` won't be quoted by `quote()`, which is actually
+     fine for round-tripping through `split()` (since `split` doesn't expand tildes), but
+     could be surprising if the output is pasted into an actual shell where tilde expansion
+     would apply. This is a pre-existing known issue (visible in upstream).
+  
+  3. **Line 345**: `join` calls `line.pop()` to remove the trailing space. If `words` is
+     an empty iterator, the fold produces an empty `String` and `pop()` is a no-op
+     (returns `None`), so this is safe.
+  
+  4. **Lines 149–159, 178–188**: Trailing backslash at EOF pushes a literal `\` and
+     produces a word. This is documented in the test `split_trailing_backslash` and
+     matches the behavior described in the doc comment. Reasonable choice.
+  
+  5. **`mem::replace(&mut word, String::new())`** used instead of `mem::take(&mut word)` —
+     functionally identical but slightly less idiomatic for current Rust. Not a bug.
+  
+  6. **Test coverage** (lines 349–507): Comprehensive tests covering empty input, whitespace
+     handling, all quote types, backslash escaping, comments, error cases, and a round-trip
+     property test (`join_followed_by_split_is_identity`). Good coverage.
+  
+  ### Red-flag scan results
+  
+  - `unsafe` / `transmute` / `from_raw`: None (forbid attribute enforced).
+  - `Command::new` / `std::process`: Only in doc-comment examples.
+  - `std::env::var`: Only in doc-comment examples.
+  - Network libraries: None.
+  - `include_bytes!` / `include_str!`: None.
+  - Base64/hex blobs: None.
+  - Obfuscated strings: None.
+  - Unbounded allocation: `split` appends to `Vec<String>` proportional to input size —
+    bounded by input length, no amplification.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped — the entire crate is a single file and was read in full.
+  
+  The `˜` vs `~` issue (finding #2) is minor and pre-existing. It does not affect
+  the core `split` functionality, only the `quote` function's handling of ASCII
+  tilde, and only matters if the quoted output is used in a real shell (not just
+  round-tripped through `split`).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+YmmdTuNClblqHcgEqUH1wIGI6zJFXWTwKp4Dbfzxd9NUE2RF9AUyruEyDu6KvJk839SuRBS5Sjtfbn7aI0aZCA
+----- END CREV PROOF -----
+
