@@ -10599,3 +10599,148 @@ comment: |-
 HBSc9NZnsjvgz37KnJUFG7ayz1GsGLDqaBbhmGlC5uMBftvBkRo6Sa-DnRl7ONfiZJBAkRsp4Xf9Brrks2jfDw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: typeid
+  version: 1.0.3
+  digest: _LKyxHHWF-Q-0y390YeLFHw6zQ4nUQLm2CmgShnT9wo
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: typeid 1.0.3
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/typeid-1.0.3
+  - Upstream repository: https://github.com/dtolnay/typeid
+  - Upstream commit verified: b06a3c08a0eaccc7df6091ade1ae4e3fb53609d5
+  - Upstream tag for version: 1.0.3 (annotated tag, resolves to same commit)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/dtolnay/typeid at commit
+  `b06a3c08a0eaccc7df6091ade1ae4e3fb53609d5` tagged `1.0.3`. `.cargo_vcs_info.json`
+  sha matches the tag commit exactly. `diff -r --brief` between the crate source
+  and the upstream checkout (excluding expected crate-only files) shows zero
+  differences. `Cargo.toml.orig` is identical to upstream `Cargo.toml`.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — Crate has a single 223-line `src/lib.rs`,
+  a 33-line `build.rs`, and a 25-line test file. Small enough to read
+  every line carefully.
+  
+  **Claims baseline:** The crate claims to provide (1) a `ConstTypeId` struct
+  that can be constructed in const context on stable Rust (unlike
+  `core::any::TypeId`), and (2) a `typeid::of::<T>()` function that returns
+  a `TypeId` for non-`'static` types by replacing all lifetimes with
+  `'static`. It claims `#![no_std]` and zero dependencies.
+  
+  ### File map
+  
+  - **src/lib.rs** (223 lines) — **read in full**
+  - **build.rs** (33 lines) — **read in full**
+  - **tests/test.rs** (25 lines) — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: Present. Reads `RUSTC` env var, runs `rustc --version` to
+    detect the compiler minor version. If >= 61, enables const function
+    pointer casting features. If >= 80, emits `cargo:rustc-check-cfg` for
+    the `no_const_type_id` cfg. No network calls, no writes outside stdout
+    (cargo directives only), no access to home directories, no obfuscated
+    strings, no binary blobs. Benign version detection — this is a standard
+    dtolnay pattern.
+  
+  - **Dependencies**: Zero external dependencies (only `core`). Confirmed in
+    `Cargo.toml.orig` — no `[dependencies]` section at all. Consistent with
+    the `no_std`/`no_alloc` claim.
+  
+  - **Proc-macro**: Not a proc-macro crate.
+  
+  - **unsafe blocks**: One `unsafe` use at lib.rs:219-221:
+    ```rust
+    NonStaticAny::get_type_id(unsafe {
+        mem::transmute::<&dyn NonStaticAny, &(dyn NonStaticAny + 'static)>(&phantom_data)
+    })
+    ```
+    This transmutes a `&dyn NonStaticAny` (with an arbitrary lifetime) to
+    `&(dyn NonStaticAny + 'static)` so that the `get_type_id` method (which
+    requires `Self: 'static`) can be called. The transmute is sound because:
+    (1) `PhantomData<T>` is a ZST with no actual data, so the reference is
+    valid regardless of lifetime; (2) the trait object's vtable is unchanged
+    by the transmute — only the lifetime bound is erased; (3) the returned
+    `TypeId` is a value type with no lifetime dependency. The pattern is a
+    well-known technique for obtaining `TypeId` of non-`'static` types, used
+    in `erased-serde` and other dtolnay crates.
+  
+  - **FFI surface**: None.
+  
+  ### Red-flag scan
+  
+  - `unsafe`: One instance, analyzed above. Sound.
+  - `transmute`: One instance, part of the above `unsafe` block. Justified.
+  - `mem::transmute`: Same as above.
+  - No `std::process::Command` usage in library code (only in `build.rs` for
+    `rustc --version`).
+  - No `std::env::var` in library code (only in `build.rs` for `RUSTC`).
+  - No network calls, no `include_bytes!`, no obfuscated strings.
+  - No base64 literals, hex blobs, or large const byte arrays.
+  - No `Drop` impls with side effects.
+  - No custom serde deserializers.
+  
+  ### Architecture summary
+  
+  The crate is minimal. `ConstTypeId` wraps a `fn() -> TypeId` function pointer,
+  storing `typeid::of::<T>` as the pointer value. This avoids needing the
+  nightly-only `const { TypeId::of::<T>() }` — instead, a function pointer
+  to `of::<T>` is const-constructible. The actual `TypeId` is computed lazily
+  when `get()` is called. `ConstTypeId` implements `Eq`, `Ord`, `Hash`, `Debug`
+  by delegating to the underlying `TypeId`.
+  
+  The `typeid::of::<T>()` function uses a trait-object transmute trick: it
+  defines a local trait `NonStaticAny` with a method bounded by `Self: 'static`,
+  implements it for `PhantomData<T>`, then transmutes the trait object's
+  lifetime to `'static` so the method can be called. This effectively strips
+  all lifetimes from `T` before calling `TypeId::of::<T>`.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims `#![no_std]`: Confirmed — `#![no_std]` at line 108, only `core` imports.
+  - Claims zero dependencies: Confirmed — no `[dependencies]` in manifest.
+  - Claims const-constructible `TypeId`: Confirmed — `ConstTypeId::of::<T>()`
+    is `const fn`, stores a function pointer.
+  - Claims non-`'static` `TypeId`: Confirmed — `typeid::of::<T>()` accepts
+    `T: ?Sized` without `'static` bound, uses transmute to erase lifetime.
+  - No capabilities exercised beyond what is claimed.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. All Rust source files read in full. The `Cargo.lock` file
+  was not reviewed (not relevant to the review).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+xO-D4HCyFHJv6rrVJNhsd_5liSSOG5BEd3KoECCBllan2SZEE9Ehy-LaQ2l8t6k8-mtXpxlXvie2QMkRpM01Dw
+----- END CREV PROOF -----
+
