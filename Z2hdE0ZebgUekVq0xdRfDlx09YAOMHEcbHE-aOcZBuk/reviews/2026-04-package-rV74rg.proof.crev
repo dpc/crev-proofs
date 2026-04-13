@@ -11626,3 +11626,159 @@ comment: |-
 YmmdTuNClblqHcgEqUH1wIGI6zJFXWTwKp4Dbfzxd9NUE2RF9AUyruEyDu6KvJk839SuRBS5Sjtfbn7aI0aZCA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T04:33:24+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: hash32
+  version: 0.3.1
+  digest: bqtitST1-nAjEoe7YkSz-0U6z-yw3asmZfiBtHfTROY
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: neutral
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: hash32 0.3.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hash32-0.3.1
+  - Upstream repository: https://github.com/japaric/hash32
+  - Upstream commit verified: d44eb33a01be4582669d9a1fa3f7c58455a21de9
+  - Upstream tag for version: v0.3.1
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` records sha `d44eb33a01be4582669d9a1fa3f7c58455a21de9`. The upstream
+  repository at https://github.com/japaric/hash32 has tag `v0.3.1` pointing at that exact
+  commit. A recursive `diff -r --brief` between the crate source and the upstream checkout
+  (excluding expected cargo-publish artifacts) produced zero differences. `Cargo.toml.orig`
+  is bit-for-bit identical to the upstream `Cargo.toml`.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — the crate is very small (~200 lines of Rust across 3
+  source files), so a careful end-to-end read is feasible and appropriate.
+  
+  ### Claims baseline
+  
+  The crate claims to provide "32-bit hashing algorithms" for `no_std` environments (targeting
+  32-bit architectures like ARM Cortex-M). It provides a `Hasher` trait extending
+  `core::hash::Hasher` with a `finish32` method, plus two hash implementations: FNV-1a and
+  MurmurHash3. It also provides a `BuildHasherDefault` with a const constructor. The only
+  dependency is `byteorder` (no-default-features). No network, filesystem, process, or env
+  access is claimed or expected.
+  
+  ### Non-negotiable checks
+  
+  - **No `build.rs`**: positive — no custom build script.
+  - **No proc-macro**: positive — not a proc-macro crate.
+  - **Dependencies**: only `byteorder` with `default-features = false`. Appropriate for a
+    `no_std` byte-order utility needed by the MurmurHash3 implementation.
+  - **FFI surface**: none.
+  - **`unsafe` blocks**: 11 `unsafe` blocks, all in `src/murmur3.rs`. Analyzed below.
+  
+  ### Per-file analysis
+  
+  **`src/lib.rs` (142 lines) — read in full:**
+  Pure trait definitions and a `BuildHasherDefault` wrapper with `PhantomData`. No `unsafe`,
+  no surprising behavior. The `Hasher` trait extends `core::hash::Hasher` and adds `finish32`.
+  `BuildHasherDefault` is a clean `PhantomData`-based const-constructible wrapper implementing
+  `Default`, `Clone`, `PartialEq`, `Eq`, `Debug`, and `BuildHasher`. All straightforward.
+  
+  **`src/fnv.rs` (37 lines) — read in full:**
+  Textbook FNV-1a 32-bit implementation. Constants `BASIS` (0x811c9dc5) and `PRIME`
+  (0x1000193) match the standard FNV-1a-32 specification. The `write` method XORs each byte
+  with the state then multiplies by the prime using `wrapping_mul`. `finish` zero-extends
+  via `.into()`. No `unsafe`, no allocations, no surprises.
+  
+  **`src/murmur3.rs` (207 lines) — read in full:**
+  MurmurHash3 32-bit implementation with a 4-byte internal buffer. This file contains all the
+  `unsafe` code in the crate.
+  
+  Unsafe block analysis:
+  
+  1. **Lines 62-63 (`push` method)**: `get_unchecked_mut` and `get_unchecked` to copy bytes
+     into the buffer without bounds checks. The bounds are guaranteed by the callers: `push`
+     is only called with slices of 0-3 bytes and `start + len` is always < 4 because `index`
+     is an `Index` enum (0-3) and callers ensure the slice fits. Sound.
+  
+  2. **Lines 88-91, 97-99, 105-107 (`finish32` tail processing)**: `assume_init_ref()` on
+     the buffer to read bytes at known-initialized indices. When `Index::_3`, bytes 0-2 are
+     initialized; when `Index::_2`, bytes 0-1; when `Index::_1`, byte 0. Only initialized
+     bytes are accessed in each branch. Sound.
+  
+  3. **Lines 140-143 (`write` method)**: `slice::from_raw_parts` to split the input slice
+     without bounds checks. `mid = 4 - index` and `len + index >= 4` is checked on line 135,
+     so `mid <= len`. Both sub-slices are within bounds. Sound.
+  
+  4. **Lines 148-149**: Same pattern as the `push` method — copying bytes into the buffer
+     with `get_unchecked_mut`. `index + i` ranges from `index` to 3, within the 4-byte
+     buffer. Sound.
+  
+  5. **Line 166**: Casting a `&[u8]` pointer (from a 4-byte chunk) to `&MaybeUninit<[u8; 4]>`.
+     The chunk is exactly 4 bytes (checked by `block.len() == 4`), and the `Buffer` struct is
+     `#[repr(align(4))]`. However, the input `bytes` slice is not guaranteed to be 4-byte
+     aligned. This is a potential alignment issue — casting an arbitrarily-aligned `&[u8]`
+     pointer to a type requiring 4-byte alignment is UB if the pointer isn't aligned.
+     In practice, `process_block` immediately calls `LE::read_u32` which does an unaligned
+     read via `byteorder`, so the actual memory access is safe. But the intermediate reference
+     `&MaybeUninit<[u8; 4]>` with `repr(align(4))` technically requires 4-byte alignment per
+     Rust's reference validity rules. **This is a minor soundness concern** — it may be UB
+     under strict interpretation of Rust's aliasing model, though it's unlikely to cause
+     real issues in practice.
+  
+  6. **Line 195 (`process_block`)**: `assume_init_ref()` on the block parameter. The block
+     is always fully initialized before `process_block` is called (either from the buffer
+     after 4 bytes are written, or from line 166 where a full 4-byte chunk is passed). Sound.
+  
+  ### Red-flag scan
+  
+  - No `std::process::Command`, no `std::env::var`, no network calls, no `include_bytes!`,
+    no obfuscated strings, no base64 literals, no suspicious `Drop` impls.
+  - `unreachable!()` on line 51 in `From<usize> for Index`: safe because `x % 4` can only
+    be 0-3.
+  - `self.processed += len as u32` on line 129: truncates silently on >4GB input. Not a
+    security issue — MurmurHash3 is a non-cryptographic hash, and no one hashes >4GB through
+    a 32-bit hasher.
+  - The `#![no_std]` declaration matches the crate's stated purpose.
+  
+  ### Architecture summary
+  
+  The crate defines a `Hasher` trait (extending `core::hash::Hasher`), provides a const-
+  constructible `BuildHasherDefault`, and implements two 32-bit hash algorithms. FNV is
+  trivially simple. MurmurHash3 uses a 4-byte aligned buffer with manual byte management
+  to avoid `memcpy` overhead and panicking bounds checks — reasonable for a `no_std`
+  embedded-targeting crate, though the amount of `unsafe` is somewhat high for what it does.
+  
+  **`examples/derive.rs` (27 lines) — read in full:**
+  Simple usage example, no concerns.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The alignment concern at line 166 of `murmur3.rs` (casting a potentially unaligned
+    `&[u8]` to `&MaybeUninit<[u8; 4]>` with `repr(align(4))`) is technically UB under
+    strict interpretation. In practice unlikely to cause issues, but worth noting.
+  - Did not run tests (only code review).
+  
+  ## Draft review fields
+  
+  - rating: neutral
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+JFtttoGHz20QEwZjwS2caBV0omdb1u5r1K53Dnf1ywsH8jgJ5jCOvFrAfAt5HB7o5HoHBfs4PXbmhOC2Sp9MAQ
+----- END CREV PROOF -----
+
