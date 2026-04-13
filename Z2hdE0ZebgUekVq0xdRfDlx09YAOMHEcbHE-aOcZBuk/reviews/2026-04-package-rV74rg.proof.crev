@@ -11208,3 +11208,123 @@ comment: |-
 7rCJLznc9XGU1UQeOObm8wJpr69cKGL1vd2gR3yDPoZN3OfwbOPmUTiCoJA_fix6IBut5_ZEL_L2HlIH7ia0AA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-12T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: tower-layer
+  version: 0.3.3
+  digest: HuwsCa1NvVcr_zp-9zzXXNJA2aJZFYZlz2a41Joa_QU
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: tower-layer 0.3.3
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-layer-0.3.3
+  - Upstream repository: https://github.com/tower-rs/tower
+  - Upstream commit verified: fec9e559e276ba9609f939d3b0d2e4fa0504de6f
+  - Upstream tag for version: tower-layer-0.3.3
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  tower-layer claims to provide a `Layer` trait that decorates a `Service` to allow easy
+  composition between services. It is a minimal abstraction crate in the Tower middleware
+  ecosystem.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/tower-rs/tower at commit
+  `fec9e559e276ba9609f939d3b0d2e4fa0504de6f`, which is the commit tagged as
+  `tower-layer-0.3.3` (and also tagged `tower-0.5.0`). The sha from
+  `.cargo_vcs_info.json` matches the tag exactly. `path_in_vcs` is `tower-layer`.
+  All source files are bit-for-bit identical. `Cargo.toml.orig` is identical to
+  upstream `Cargo.toml`. No differences found.
+  
+  ## Code review findings
+  
+  Thoroughness: `medium` — 655 Rust LoC (300–1500 range), all files read in full.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: Zero runtime dependencies. Dev-dependencies use path
+    references (`tower-service`, `tower`) which is expected for a workspace member and
+    stripped at publish time. No suspicious deps.
+  - **proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe**: The crate has `#![forbid(unsafe_code)]` at the crate root. Zero unsafe
+    blocks. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** (112 lines) — **read in full**. Defines the `Layer<S>` trait with a
+    single method `fn layer(&self, inner: S) -> Self::Service`. Provides a blanket impl
+    for `&T where T: Layer<S>`. Has `#![forbid(unsafe_code)]` and quality lints enabled.
+    No red flags.
+  
+  - **src/identity.rs** (37 lines) — **read in full**. `Identity` struct that implements
+    `Layer<S>` by returning the service unchanged. Derives `Default`, `Clone`, implements
+    `Debug`. Trivial and correct.
+  
+  - **src/layer_fn.rs** (114 lines) — **read in full**. `layer_fn` function and `LayerFn<F>`
+    struct that adapts a closure into a `Layer`. Implements `Layer<S>` by calling the
+    closure. Has a test for the `Debug` impl using `type_name`. Clean.
+  
+  - **src/stack.rs** (62 lines) — **read in full**. `Stack<Inner, Outer>` composes two
+    layers. `Layer` impl applies inner first, then outer. Custom `Debug` impl formats
+    nested stacks readably. Correct.
+  
+  - **src/tuple.rs** (330 lines) — **read in full**. Implements `Layer<S>` for tuples from
+    `()` up to 16 elements, using recursive decomposition. Each impl delegates to the
+    sub-tuple. This is entirely mechanical boilerplate (could be macro-generated but is
+    hand-written). Each impl is structurally identical. Correct.
+  
+  ### Red-flag scan results
+  
+  No hits for: `unsafe`, `transmute`, `from_raw`, `Command`, `env::var`, `reqwest`,
+  `include_bytes!`, base64 literals, obfuscated strings, `unwrap`, `panic!`, conditional
+  compilation with surprising behavior, `Drop` impls, or custom serde deserializers.
+  
+  ### Architecture summary
+  
+  This crate is a single-trait abstraction. The `Layer<S>` trait has one associated type
+  (`Service`) and one method (`layer`). The crate provides three convenience types:
+  `Identity` (no-op layer), `LayerFn` (closure adapter), and `Stack` (two-layer
+  composition). Tuple impls allow composing up to 16 layers via tuple syntax. There is
+  no runtime behavior, no I/O, no allocation, no state — purely type-level plumbing.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to decorate a `Service` for easy composition. The code does exactly
+  this and nothing more. No capabilities beyond pure function composition are exercised.
+  No network, filesystem, process, env, FFI, or unsafe code. Fully consistent with claims.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of tower-layer at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. All 5 source files (655 lines total) were read in full and analyzed.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+Lag5Zupld_QfqNo0WpWLELk7zdM2VVWnL-rifWNNQCmonLDbbBPSQv1WNjKgJxPlb_Lx5qJLsaHfOJsaZY0dDA
+----- END CREV PROOF -----
+
