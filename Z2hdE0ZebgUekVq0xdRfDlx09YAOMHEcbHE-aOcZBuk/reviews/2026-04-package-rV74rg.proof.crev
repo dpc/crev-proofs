@@ -12076,3 +12076,142 @@ comment: |-
 gIEhjFH5HAvzAWb97rQ1wofVW_AVNp6ZrhZxi8nFflFR0xs5Al7IDEEEjDUoa0CzZR5pGes8TsNLgJq0BmRqDg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T21:23:10+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: by_address
+  version: 1.2.1
+  digest: ZwDf90L3w1X_lUJcCHrdD40ugUqTuTKrCl0FfValW_s
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: by_address 1.2.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/by_address-1.2.1
+  - Upstream repository: https://github.com/mbrubeck/by_address
+  - Upstream commit verified: bb921a29ea2fc1ee30a4dac9ff6d97c6730b5c7f
+  - Upstream tag for version: v1.2.1
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/mbrubeck/by_address at commit
+  `bb921a29ea2fc1ee30a4dac9ff6d97c6730b5c7f` tagged `v1.2.1`. The sha from
+  `.cargo_vcs_info.json` matches the tag commit exactly. `diff -r --brief` between
+  the crate source and the upstream checkout (excluding expected cargo-publish
+  artifacts) shows zero differences. `Cargo.toml.orig` is identical to upstream
+  `Cargo.toml`. All files bit-for-bit identical.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — Crate is very small (~300 lines of non-test Rust
+  code in a single file), so a careful end-to-end read is feasible.
+  
+  **Claims baseline:** The crate claims to provide wrapper types (`ByAddress` and
+  `ByThinAddress`) for pointer types that implement `Hash`, `Eq`, `PartialEq`,
+  `Ord`, `PartialOrd` based on pointer address rather than value. It claims
+  `no_std` support and zero dependencies.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Dependencies**: Zero dependencies (only `core`). Positive.
+  - **Proc macros**: None. Positive.
+  - **FFI surface**: None. Positive.
+  - **`unsafe` blocks**: Two found, analyzed below.
+  
+  ### File map
+  
+  - `src/lib.rs` (431 lines): **read in full**
+  
+  ### Architecture summary
+  
+  The crate provides two `#[repr(transparent)]` newtype wrappers:
+  
+  1. `ByAddress<T>` — wraps any `T: ?Sized + Deref` and implements comparison/hashing
+     using the full fat pointer (address + metadata for unsized types).
+  2. `ByThinAddress<T>` — same, but casts the pointer to `*const ()` before
+     comparison/hashing, discarding fat pointer metadata (length for slices, vtable
+     for trait objects).
+  
+  Both types implement: `Copy`, `Clone`, `Default`, `Debug`, `Display`, `PartialEq`,
+  `Eq`, `Ord`, `PartialOrd`, `Hash`, `Deref`, `DerefMut`, `AsRef`, and `From`.
+  `ByThinAddress` does not implement `AsMut` (omission, possibly intentional).
+  
+  ### Unsafe analysis
+  
+  **Block 1** (`ByAddress::from_ref`, lines 114-116):
+  ```rust
+  unsafe { &*(r as *const T as *const Self) }
+  ```
+  Soundness argument: `ByAddress` is `#[repr(transparent)]` over `T`, so `*const T`
+  and `*const ByAddress<T>` have identical layout. The cast preserves lifetime from
+  the input reference. This is sound.
+  
+  **Block 2** (`ByThinAddress::from_ref`, lines 272-274):
+  ```rust
+  unsafe { &*(r as *const T as *const Self) }
+  ```
+  Same pattern, same soundness argument. `ByThinAddress` is also `#[repr(transparent)]`.
+  The safety comment says "struct ByAddress" but means "struct ByThinAddress" — this is
+  a copy-paste error in the comment, not the code. The code itself is correct.
+  
+  ### Red-flag scan
+  
+  - No `transmute`, `from_raw`, raw pointer arithmetic beyond the address casts above.
+  - No `std::process::Command`, no env var access, no network, no filesystem.
+  - No `include_bytes!`, no base64 blobs, no obfuscated strings.
+  - No `unwrap`/`expect`/`panic!` in non-test code.
+  - No conditional compilation beyond `#[cfg(test)]`.
+  - No `Drop` impls.
+  - `#![no_std]` confirmed at line 77.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims `no_std`: confirmed, `#![no_std]` declared, only `core` used.
+  - Claims zero dependencies: confirmed, `Cargo.toml` has no `[dependencies]`.
+  - Claims pointer-address comparison/hashing: confirmed, all trait impls use
+    `ptr::eq` or cast to raw pointer for comparison/hashing.
+  - No capabilities beyond what's claimed. No I/O, no allocation, no unsafe beyond
+    the two `repr(transparent)` casts.
+  
+  ### Minor observations
+  
+  1. The safety comment on `ByThinAddress::from_ref` (line 271) says "struct ByAddress"
+     instead of "struct ByThinAddress" — copy-paste typo in comment only.
+  2. `ByAddress` implements `AsMut` but `ByThinAddress` does not. This appears to be an
+     omission rather than intentional, but it's not a correctness issue.
+  3. The `PartialOrd` impls for both types delegate to `Ord::cmp` (returning
+     `Some(self.cmp(other))`), which is the correct pattern.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version. This is the first review.
+  
+  ## Open questions / things skipped
+  
+  - Tests (lines 371-430): Read in full. They test trait object vtable behavior
+    and Debug formatting. Nothing suspicious.
+  - LICENSE files: Not read (standard Apache-2.0 / MIT dual license).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+-yQJWM7mjFygNj8F9VLvzHUK4eSK22S4xWAanXdaLp5zj_oAL-jYX3lbMiCoT6OYd43bqd99SQwu8315tJ9IBA
+----- END CREV PROOF -----
+
