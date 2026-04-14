@@ -12741,3 +12741,118 @@ comment: |-
 NE7frCuruaUH3yc7QvEVwsFrIyt0lUeObYkuhtenvT0SQa4m3rp-G1aCkF7i2lmlmPBy3ncsKLUH4j8_7ww_AA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T21:42:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: hex_lit
+  version: 0.1.1
+  digest: Aa9xE9AhQl7vl8AwcnkPkwP6ETi86oTxv_HkBbw-iCM
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: hex_lit 0.1.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hex_lit-0.1.1
+  - Upstream repository: https://github.com/Kixunil/hex_lit
+  - Upstream commit verified: n/a (sha `a1b61585654a3280103a9622c272b2f8ba278a47` from `.cargo_vcs_info.json` does not exist in upstream repo)
+  - Upstream tag for version: n/a (no tags in upstream repo; repo only contains initial commit for v0.1.0)
+  - Verification outcome: partial
+  
+  ## External verification
+  
+  The upstream repository at https://github.com/Kixunil/hex_lit contains a single commit (`fad6e88`, "Initial release") corresponding to version 0.1.0. There are no tags. The sha from `.cargo_vcs_info.json` (`a1b61585654a3280103a9622c272b2f8ba278a47`) does not exist in the upstream repo — it was likely published from a commit that was subsequently force-pushed away or from a different branch.
+  
+  Diffing the crate tarball against the upstream v0.1.0 commit:
+  
+  - `Cargo.toml.orig` vs upstream `Cargo.toml`: only difference is `version = "0.1.1"` vs `"0.1.0"` — expected version bump.
+  - `src/lib.rs`: one added line at line 62: `#![cfg_attr(docsrs, feature(doc_cfg))]` — a standard docsrs attribute, entirely benign.
+  - `build.rs` and `README.md`: identical.
+  
+  The differences are minimal and clearly benign (version bump + docsrs attribute). The missing commit sha is a minor discrepancy — the author likely published 0.1.1 from a local commit not pushed to the public repo.
+  
+  ## Code review findings
+  
+  ### Thoroughness: medium
+  
+  Chosen because the crate is small (~350 Rust LoC across 2 files) and can be read end-to-end.
+  
+  ### Claims baseline
+  
+  The crate claims to provide hex literal macros (`hex!`, `hex_const!`, `hex_static!`) that convert hex string constants into `[u8; N]` byte arrays at compile time, without proc macros. It's `no_std`, no allocator required. It adapts behavior across Rust versions (1.41.1+, 1.46+, 1.57+).
+  
+  ### File map
+  
+  - **build.rs** — read in full. Detects Rust compiler minor version by running `rustc --version` and sets `cfg` flags (`rust_v_1_46`, `rust_v_1_57`). Only shells out to `rustc --version` using the `RUSTC` env var (standard cargo behavior). Does not write outside `OUT_DIR` (only uses `cargo:rustc-cfg` println directives). No network calls, no suspicious behavior. Clean.
+  
+  - **src/lib.rs** — read in full. Contains:
+    - `#![no_std]` — matches claims.
+    - `maybe_const!` and `pub_maybe_const!` internal macros for conditional const support across Rust versions.
+    - Three versions of `invalid_digit()` for different Rust version ranges, providing progressively better error messages.
+    - `decode_digit()` — standard hex digit to nibble conversion. Correct.
+    - `decode_byte()` — decodes two hex chars at a given position. Correct.
+    - `hex_impl!` macro — validates even length at compile time via `[()][$hex.len() % 2]` trick, then loops to decode. Correct.
+    - `msrv_opt_in()` — gates const usage on the `rust_v_1_46` feature flag.
+    - `hex!` macro — two versions depending on Rust version. Forces const eval on 1.46+ for compile-time checking.
+    - `hex_const!` and `hex_static!` — convenience macros for const/static declarations.
+    - Tests section — basic correctness tests and panic tests for invalid input.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: Present. Only runs `rustc --version` to detect compiler version. No network calls, no suspicious file access, no writing outside OUT_DIR. Clean.
+  - **Dependencies**: Zero dependencies (`Cargo.toml` has no `[dependencies]`). Perfect for this crate's purpose.
+  - **Proc-macro**: Not a proc-macro crate. Uses only `macro_rules!`. Clean.
+  - **Unsafe blocks**: One instance at `src/lib.rs:126`:
+    ```rust
+    let message = unsafe { core::str::from_utf8_unchecked(&buf) };
+    ```
+    This is in the `invalid_digit()` function (Rust 1.57+ version only). The `buf` is constructed character-by-character from ASCII bytes (`b'i'`, `b'n'`, etc.) and digit-to-ASCII conversion (`digit / 100 + b'0'`, etc.). All values are guaranteed to be valid ASCII (the base message is ASCII literals, and the digit formatting produces `b'0'`..=`b'9'`). The `from_utf8_unchecked` is sound here because all bytes are valid ASCII and therefore valid UTF-8. This function only runs on panic paths (invalid hex input), so it's not performance-critical — the `unsafe` could be replaced with `from_utf8().unwrap()` but it's not incorrect.
+  - **FFI surface**: None.
+  
+  ### Red-flag scan
+  
+  - `unsafe`: one instance, analyzed above — sound.
+  - `std::process::Command`: used in `build.rs` only, for `rustc --version` — standard and expected.
+  - `std::env::var_os`: used in `build.rs` only, for `RUSTC` env var — standard cargo behavior.
+  - No network calls, no `include_bytes!`, no obfuscated strings, no base64 blobs, no suspicious `Drop` impls, no conditional compilation beyond the version-gating (`rust_v_1_46`, `rust_v_1_57`).
+  
+  ### Architecture summary
+  
+  The crate is straightforward: `hex!` macro takes a `&str` constant, validates even length at compile time, and decodes each pair of hex characters into a byte using `decode_digit` and `decode_byte` helper functions. On Rust 1.46+, the entire decode is forced through const evaluation, catching errors at compile time. The version-detection build script sets cfg flags so the crate gracefully degrades on older compilers. No runtime allocations, no I/O, no dependencies — exactly what it claims to be.
+  
+  ### Claims vs reality reconciliation
+  
+  - "Hex literal macros without proc macros" — confirmed, only `macro_rules!`.
+  - "no_std, no allocator" — confirmed, `#![no_std]`, no alloc import.
+  - "Faster compile times" (vs proc-macro alternatives) — plausible, no proc-macro compilation needed.
+  - No capabilities exercised beyond what's claimed. The `unsafe` in error formatting is a minor implementation detail, not a capability concern.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The upstream git sha from `.cargo_vcs_info.json` does not exist in the public repo. The code differences vs the v0.1.0 commit are trivial and benign, so this is a minor discrepancy rather than a red flag. The author (Kixunil / Martin Habovstiak) is a known Bitcoin/Rust developer.
+  - Test files were read but not deeply analyzed (they are straightforward assertion-based tests).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+rGImz0KlmUUh4Qjb3wwlaSDHPyNswLBOOqAr1HguRqm7Tj9Jo5EfRiF-kS675pLnBPAAFfWEf7_YDsoz1JOkCA
+----- END CREV PROOF -----
+
