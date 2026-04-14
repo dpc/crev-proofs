@@ -13741,3 +13741,107 @@ comment: |-
 P-KxyURRGGtIu8b7HWL3mdnIs3EG4ZJmD098xJQzwczUfcWON9oXQt2JHR-g3lv8hmC41e9X2uF1GanJHNG2Dg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T22:34:18+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: scoped-tls
+  version: 1.0.1
+  digest: wwQW_Xet82gsIl7yRN50pOJAPQ4UcK3gd0X7kYUvmB4
+review:
+  thoroughness: medium
+  understanding: high
+  rating: neutral
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: scoped-tls 1.0.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/scoped-tls-1.0.1
+  - Upstream repository: https://github.com/alexcrichton/scoped-tls
+  - Upstream commit verified: c0ff7bf6d33e568353ed863d90f893e7e80a0ed1
+  - Upstream tag for version: 1.0.1
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to provide scoped thread-local storage — a way to temporarily store a reference in TLS for the duration of a closure. It is a library implementation of the old `scoped_thread_local!` macro from the standard library.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/alexcrichton/scoped-tls at commit `c0ff7bf6d33e568353ed863d90f893e7e80a0ed1`, which is the commit tagged as `1.0.1`. The `.cargo_vcs_info.json` sha and the tag agree. All non-metadata files are bit-for-bit identical between the crates.io tarball and the upstream checkout. The `Cargo.toml.orig` and upstream `Cargo.toml` are identical.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — the crate is 134 LoC (including tests) in a single file, small enough for a careful end-to-end read.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: Zero dependencies. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **FFI surface**: None. Positive.
+  - **Unsafe blocks**: Two instances identified (see below).
+  
+  ### File map
+  
+  - `src/lib.rs` (268 lines total, ~180 non-test): **read in full**
+  
+  ### Architecture summary
+  
+  The crate provides a single macro `scoped_thread_local!` and a type `ScopedKey<T>`. The macro declares a `static ScopedKey<T>` that wraps a `thread_local!` `Cell<*const ()>`. `ScopedKey::set()` stores a reference as a raw pointer into TLS for the duration of a closure, restoring the previous value on drop (via a `Reset` guard struct). `ScopedKey::with()` retrieves the pointer, asserts it's non-null, and casts it back to `&T`. `ScopedKey::is_set()` checks for null.
+  
+  ### Unsafe analysis
+  
+  1. **`unsafe impl<T> Sync for ScopedKey<T>` (line 83)**: Sound. `ScopedKey` only contains a `&'static LocalKey<Cell<*const ()>>` and a `PhantomData<T>`. The `LocalKey` itself is `Sync` (each thread accesses its own cell), and `PhantomData` is `Sync`. The shared static reference is fine because the actual mutable state is per-thread via TLS.
+  
+  2. **`unsafe { f(&*(val as *const T)) }` in `with()` (lines 170-172)**: The pointer was set by `set()` which casts `&T` to `*const T` to `*const ()`. When retrieved in `with()`, it's cast back from `*const ()` to `*const T` and dereferenced. This is sound **if and only if** the type parameter `T` is the same in both `set` and `with`. When `ScopedKey` is constructed only through the macro, this invariant holds because the macro ties the type parameter to the TLS cell.
+  
+  ### Soundness issue: public fields allow UB from safe code
+  
+  **FINDING**: `ScopedKey` has `pub inner` and `pub _marker` fields (lines 77-81, marked `#[doc(hidden)]` but still public). This allows safe code to construct a `ScopedKey<WrongType>` wrapping an existing TLS key, breaking the type safety invariant that `with()` relies on. Calling `with()` on such a mistyped key would interpret memory as the wrong type — undefined behavior from safe code.
+  
+  This is upstream issue https://github.com/alexcrichton/scoped-tls/issues/23, fixed in commit `a9fb075` on `main` (fields made private, constructor function added). However, this fix has **not been released** — 1.0.1 is the latest published version and it still has the public fields.
+  
+  **Practical risk assessment**: Low-to-moderate. Exploiting this requires deliberately constructing a `ScopedKey` with mismatched types — it wouldn't happen accidentally in normal usage through the macro. The `#[doc(hidden)]` attribute discourages (but doesn't prevent) direct field access. However, the principle of "no UB from safe code" is a fundamental Rust soundness guarantee, and this crate violates it.
+  
+  ### Red-flag scan results
+  
+  - `unsafe`: 2 instances, both analyzed above.
+  - `transmute`, `from_raw`, raw pointer arithmetic: None.
+  - `std::process::Command`, shell invocation: None.
+  - `std::env::var`: None.
+  - Network libraries: None.
+  - `include_bytes!`, `include_str!`: None.
+  - Obfuscated strings, hex/base64 blobs: None.
+  - Conditional compilation (`#[cfg(...)]`): Only `#[cfg(test)]` for the test module. Benign.
+  
+  ### Claims vs. reality reconciliation
+  
+  The crate does exactly what it claims: scoped thread-local storage via a macro and a key type. No capabilities beyond what's stated (no I/O, no network, no env access, no spawning). The only concern is the soundness issue with public fields.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - Test module (lines 181-267): Read in full. Tests cover basic usage, `Cell` types, recursive set/restore on panic, and attribute support. Well-structured.
+  - The unreleased soundness fix on `main` means users of 1.0.1 are exposed to the public-fields issue. A new release would resolve this, but the upstream repo appears low-activity.
+  
+  ## Draft review fields
+  
+  - rating: neutral
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+siEa-ftm914NP1kxdNL0np5RVmat6EMDpRi94NR5mffN1XXHvszjRJHh8XG7sPZF_m4e5MpZLwp0JlJgzAnGDg
+----- END CREV PROOF -----
+
