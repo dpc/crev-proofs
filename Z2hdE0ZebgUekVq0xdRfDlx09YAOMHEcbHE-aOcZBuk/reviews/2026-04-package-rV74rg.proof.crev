@@ -13491,3 +13491,122 @@ comment: |-
 n-qLDzG4KlMm3RYmQCMpl2aSetDDyCSvMHog6_HF1sv2OC-n7pCg-TnW19zpqQVmAiDIPcQjnnpp7aaiyGJkDQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: siphasher
+  version: 1.0.1
+  digest: SbBRdvufnIiiDMvu5CdCIa6Y8O1aVwxA5Jj7ennOf94
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: siphasher 1.0.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/siphasher-1.0.1
+  - Upstream repository: https://github.com/jedisct1/rust-siphash
+  - Upstream commit verified: f57236be563e74ed9d4a3df93b6d2da15660bd18
+  - Upstream tag for version: 1.0.1
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/jedisct1/rust-siphash at commit
+  `f57236be563e74ed9d4a3df93b6d2da15660bd18` tagged `1.0.1`. The sha from
+  `.cargo_vcs_info.json` matches the tag exactly. `Cargo.toml.orig` is identical
+  to the upstream `Cargo.toml`. All other files are bit-for-bit identical (only
+  `.git` directory differs, as expected).
+  
+  ## Claims baseline
+  
+  The crate claims to implement SipHash-2-4, SipHash-1-3, and their 128-bit
+  variants in pure Rust. It is `no_std`-compatible and offers optional serde
+  support. It explicitly warns that SipHash is not intended for cryptographic
+  purposes.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — crate has ~600 lines of non-test Rust code
+  across 3 source files; small enough to read carefully end-to-end.
+  
+  ### File map
+  
+  - `src/lib.rs` (31 lines) — **read in full**: Module re-exports, prelude, conditional serde re-exports. Clean and minimal.
+  - `src/sip.rs` (595 lines) — **read in full**: Core 64-bit SipHash implementation. Contains the `compress!` macro, `load_int_le!` macro, `u8to64_le` unsafe function, `Hasher` struct, and `SipHasher`/`SipHasher13`/`SipHasher24` wrappers. Implements `core::hash::Hasher` trait.
+  - `src/sip128.rs` (697 lines) — **read in full**: 128-bit variant. Near-duplicate of `sip.rs` with modifications for 128-bit output (`finish128` method, `Hash128` type). Adds `Hasher128` trait. The `v1` initial value uses `0xee` XOR for 128-bit domain separation. `reset()` uses `0x646f72616e646f83` instead of `0x646f72616e646f6d` for `v1` — this is the standard 128-bit SipHash constant modification.
+  - `src/tests.rs` (333 lines) — **read in full**: Test vectors for SipHash-1-3 and SipHash-2-4 (64-bit mode). Tests incremental hashing, idempotency, no-byte-drop, no-concat-alias. Serde round-trip test behind feature flag.
+  - `src/tests128.rs` (135 lines) — **read in full**: Test vectors for 128-bit mode. Same pattern as tests.rs.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependency list**: Only `serde` and `serde_json`, both optional. Consistent with the crate's stated purpose (hash function with optional serialization). No suspicious deps.
+  - **Proc-macro**: Not a proc-macro crate. No `proc-macro = true`.
+  - **FFI surface**: No `extern "C"`, no bindgen, no linked C libraries.
+  - **`unsafe` blocks**: Enumerated all unsafe usage:
+  
+    1. `sip.rs:126` / `sip128.rs:142` — `u8to64_le()` function: Uses `load_int_le!` (which calls `ptr::copy_nonoverlapping` for unaligned loads) and `get_unchecked`. Soundness: The function is called only from `Hasher::write()` where `start + len` is always within `msg.len()` bounds — guarded by the arithmetic `cmp::min(length, needed)` and `left = len & 0x7`. The `debug_assert!(len < 8)` confirms the invariant. Sound.
+  
+    2. `sip.rs:108-118` / `sip128.rs:123-134` — `load_int_le!` macro: `ptr::copy_nonoverlapping` from `buf.as_ptr().add(i)` to a local integer. Guarded by `debug_assert!` on bounds. Used only via `u8to64_le` and in the main `write()` loop where `i` is always `< len - left` (8-byte aligned reads within message bounds). Sound.
+  
+    3. `sip.rs:139` / `sip128.rs:155` — `get_unchecked` in `u8to64_le`: Reads a single byte at `start + i` where `i < len` and `start + len <= buf.len()` (from caller invariants). Sound.
+  
+    4. `sip128.rs:674-676` — `Hash128::as_bytes()`: `ptr::copy_nonoverlapping` from `&h1`/`&h2` (u64 references) to a `[u8; 16]` buffer. Source is valid u64, dest is a stack-allocated array of sufficient size, sizes are fixed at 8. Sound.
+  
+    All unsafe usage is for performance-optimized unaligned memory reads, following the same pattern as Rust's standard library SipHash implementation. All are guarded by debug assertions and bounded by caller invariants.
+  
+  ### Red-flag scan
+  
+  - No `std::process::Command`, no shell invocation.
+  - No `std::env::var` or `std::env::vars`.
+  - No network libraries (`reqwest`, `ureq`, `hyper`, etc.).
+  - No `include_bytes!` or `include_str!` (except `include_str!("../README.md")` for rustdoc, benign).
+  - No base64 literals, hex blobs, or obfuscated strings. The hex constants (`0x736f6d6570736575`, etc.) are the well-known SipHash initialization constants ("somepseudorandomlygeneratedbytes" in ASCII).
+  - No `transmute`.
+  - No `Drop` impls with side effects.
+  - No conditional compilation that behaves differently across targets in non-obvious ways. Only `#[cfg(not(test), no_std)]` and feature-gated serde support.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims: pure Rust SipHash implementation, `no_std`, optional serde. Reality: confirmed. No capabilities exercised beyond what is claimed. No I/O, no network, no filesystem, no process spawning.
+  
+  ### Architecture summary
+  
+  The crate provides SipHash-1-3 and SipHash-2-4 in both 64-bit and 128-bit output
+  variants. The implementation is parameterized via a `Sip` trait with `c_rounds` and
+  `d_rounds` methods, instantiated as `Sip13Rounds` (1 compression round, 3 finalization
+  rounds) and `Sip24Rounds` (2/4). The `compress!` macro implements the core ARX
+  (add-rotate-xor) round. Wrapper types (`SipHasher`, `SipHasher13`, `SipHasher24`)
+  provide the public API and implement `core::hash::Hasher`. The 128-bit module adds a
+  `Hasher128` trait with `finish128()` and a `Hash128` output type with conversion
+  utilities.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - Did not verify the SipHash test vectors against an independent reference implementation. The vectors in tests.rs match the format from the original SipHash paper's reference vectors.
+  - The `sip.rs` and `sip128.rs` modules contain significant code duplication. This is a code quality observation, not a security concern.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+pCuNJcWBZv_3chMX66-sH25Ski-Pq4bsVCvbnIHvaRTmcVOs2fVfO1rTUJMGMcRheztWxfdGVV3SbN-AZU_IDg
+----- END CREV PROOF -----
+
