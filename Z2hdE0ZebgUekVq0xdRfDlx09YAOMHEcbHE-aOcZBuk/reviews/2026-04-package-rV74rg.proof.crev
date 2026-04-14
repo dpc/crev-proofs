@@ -14155,3 +14155,136 @@ comment: |-
 wIzJXHCq7yespry2ARdQhAjuPUh01duxdH1Xyj_QUf4mGN0mH2lZfCKt-JRoLSKtecwFB9UU5p_jcM69Ksa3DQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: ciborium-io
+  version: 0.2.2
+  digest: 0KNLEKUSh-1pCNJX6XS0a2D92sdnCL-fex1k5oCnwik
+review:
+  thoroughness: high
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: ciborium-io 0.2.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ciborium-io-0.2.2
+  - Upstream repository: https://github.com/enarx/ciborium
+  - Upstream commit verified: fdf3ec5c53256000f8e12f06c361ca18026a8d99
+  - Upstream tag for version: v0.2.2
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `fdf3ec5c53256000f8e12f06c361ca18026a8d99`, which is the exact commit
+  tagged `v0.2.2` in the upstream repo at https://github.com/enarx/ciborium. A recursive `diff -r --brief`
+  between the crates.io source and the upstream `ciborium-io/` subdirectory (excluding expected files:
+  `Cargo.toml`, `Cargo.toml.orig`, `.cargo_vcs_info.json`, `.cargo-ok`) shows zero differences. Package
+  matches upstream bit-for-bit.
+  
+  ## Code review findings
+  
+  **Thoroughness level chosen: high** — The crate is a single file (`src/lib.rs`) of 265 lines including
+  tests (~150 lines of non-test code). Small enough for a complete, careful end-to-end read.
+  
+  **Claims baseline:** The crate claims to provide simplified `Read` and `Write` traits for `no_std` usage,
+  mirroring `std::io::Read` and `std::io::Write`. It claims to be a zero-cost abstraction containing only
+  traits, inline functions, and unit structs. Features: `std` (blanket impls for std::io types) and `alloc`
+  (impl for `Vec<u8>`).
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**, every line inspected
+  - `Cargo.toml.orig` — **read in full**
+  - `README.md` — **read in full**
+  - `LICENSE` — not read (Apache-2.0, not code)
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: Zero dependencies. The crate has no `[dependencies]` section at all. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: `rg -n 'unsafe' src/lib.rs` — zero hits. No unsafe code anywhere. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  
+  ### Detailed findings
+  
+  1. **Lines 29-35: `Read` trait** — Simple trait with associated `Error` type and `read_exact` method.
+     Mirrors `std::io::Read::read_exact`. Clean, minimal API. No concerns.
+  
+  2. **Lines 41-50: `Write` trait** — Simple trait with associated `Error` type, `write_all` and `flush`
+     methods. Mirrors `std::io::Write`. Clean, minimal API. No concerns.
+  
+  3. **Lines 52-75: std blanket impls** — `#[cfg(feature = "std")]` blanket impls delegate directly to
+     `std::io::Read::read_exact`, `std::io::Write::write_all`, and `std::io::Write::flush`. All methods
+     are `#[inline]`. Straightforward delegation, no logic. No concerns.
+  
+  4. **Lines 77-100: `&mut R`/`&mut W` delegation impls (no_std only)** — These provide the standard
+     delegation pattern for mutable references. Only active when `std` is disabled (since the std blanket
+     impl already covers this case). The `?Sized` bound is correct. No concerns.
+  
+  5. **Lines 102-122: `EndOfFile` error and `Read for &[u8]`** — `EndOfFile` is a unit struct with private
+     field (prevents external construction). The `read_exact` impl correctly checks `data.len() > self.len()`
+     before splitting, uses `split_at` and `copy_from_slice`. The slice is advanced via `*self = suffix`.
+     This is a standard, correct pattern. No concerns.
+  
+  6. **Lines 124-149: `OutOfSpace` error and `Write for &mut [u8]`** — Similar pattern. Uses
+     `core::mem::take(self)` to take ownership of the slice, splits, copies, and reassigns. The `take`
+     call replaces `*self` with an empty slice temporarily, then reassigns to `suffix`. This is a correct
+     and idiomatic pattern for writing into a mutable slice reference. `flush` is a no-op. No concerns.
+  
+  7. **Lines 151-165: `Write for Vec<u8>`** — Only active with `alloc` and without `std`. Delegates to
+     `extend_from_slice`. Error type is `Infallible` (allocation failure panics, which is standard Rust
+     behavior). `flush` is a no-op. No concerns.
+  
+  8. **Lines 167-265: Tests** — Tests cover EOF, single/double reads, OOS, single/double writes, Vec writes,
+     and std variants. Tests use `unwrap_err()` for expected failures. Adequate coverage for this trivial crate.
+  
+  ### Red-flag scan results
+  
+  - `unsafe`: 0 hits
+  - `transmute`, `from_raw`, raw pointers: 0 hits
+  - `std::process::Command`, shell invocation: 0 hits
+  - `std::env::var`: 0 hits
+  - Network crates (`reqwest`, `ureq`, etc.): 0 hits
+  - `include_bytes!`, `include_str!`: 0 hits
+  - Base64/hex blobs, obfuscated strings: 0 hits
+  - Conditional compilation: present (`#[cfg(feature = "std")]`, `#[cfg(feature = "alloc")]`,
+    `#[cfg(not(feature = "std"))]`) — all straightforward feature gating, no target-specific
+    behavior differences. Benign.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to provide simplified Read/Write traits for no_std. Reality: it provides exactly that —
+  two traits, blanket impls for std, impls for slices and Vec, zero dependencies, zero unsafe, zero I/O
+  beyond what the traits abstract. The "zero-cost abstraction" claim is accurate: all functions are inline,
+  all types are ZSTs (error types) or traits. No capabilities are exercised beyond what is claimed.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. The entire crate was read in full. No open questions — the crate is simple enough
+  to fully understand.
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: high
+  - understanding: high
+----- SIGN CREV PROOF -----
+RZ2HSkl4h4stPm8hsFehVkc5L-Xc9xoqAzFr4sROENgPXMrUykF_VDLjH1_FbvOPxbdM9A-QH8vMVFl2ZQDIDQ
+----- END CREV PROOF -----
+
