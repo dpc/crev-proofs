@@ -12215,3 +12215,158 @@ comment: |-
 -yQJWM7mjFygNj8F9VLvzHUK4eSK22S4xWAanXdaLp5zj_oAL-jYX3lbMiCoT6OYd43bqd99SQwu8315tJ9IBA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T21:27:14+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: id-arena
+  version: 2.3.0
+  digest: h0dz_ckvi_e4S1p61K1bICr703KQuQ338Yrjf4Q9Yrc
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: id-arena 2.3.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/id-arena-2.3.0
+  - Upstream repository: https://github.com/fitzgen/id-arena
+  - Upstream commit verified: 52bd3681cf295a220f78de945d32a26ead712385
+  - Upstream tag for version: no tag for 2.3.0 (latest tag is 2.2.1); commit message reads "Bump to version 2.3.0"
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/fitzgen/id-arena at commit
+  `52bd3681cf295a220f78de945d32a26ead712385`. The sha was taken from
+  `.cargo_vcs_info.json` and the commit exists upstream with commit message
+  "Bump to version 2.3.0". No version tag exists for 2.3.0 (the most recent
+  tag is `2.2.1`), but this is a minor finding — the author may have simply
+  stopped tagging releases. The `Cargo.toml.orig` is bit-for-bit identical
+  to the upstream `Cargo.toml`. All other files are bit-for-bit identical.
+  No discrepancies found.
+  
+  ## Claims baseline
+  
+  The crate claims to be "a simple, id-based arena": allocate objects, get
+  an integer-based `Id` back (not a reference), and use that id to index
+  into the arena. No deletion. Homogeneous. Supports `no_std` (with alloc)
+  and optional `rayon` parallel iteration. No I/O, no network, no FFI, no
+  unsafe code.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — the crate is ~1000 lines across 3 source
+  files, small enough to read end-to-end carefully.
+  
+  ### Non-negotiable checks
+  
+  - **`build.rs`**: None present. Positive.
+  - **`#![forbid(unsafe_code)]`**: Present at `src/lib.rs:101`. The entire
+    crate forbids unsafe code at the compiler level. No `unsafe` blocks
+    exist anywhere. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C
+    libraries. Positive.
+  - **Dependencies**: Only `rayon` (optional). Appropriate for a crate that
+    advertises optional parallel iteration support. No surprising deps.
+  
+  ### Per-file review
+  
+  - **`src/lib.rs` (727 lines)** — **read in full**.
+    - `#![forbid(unsafe_code)]`, `#![no_std]` with conditional `alloc`/`std`
+      extern crate. Clean.
+    - `ArenaBehavior` trait: defines how ids map to indices. Uses a global
+      `AtomicUsize` counter (`ARENA_COUNTER`) with `SeqCst` ordering to
+      generate unique arena ids. The counter is cast to `u32` which will
+      silently wrap after 2^32 arenas — a theoretical collision risk but
+      practically irrelevant and documented implicitly by the `u32` type.
+    - `Id<T>` struct: `usize` index + `u32` arena_id + `PhantomData`.
+      Manually implements `Copy`, `Clone`, `PartialEq`, `Eq`, `Hash`,
+      `PartialOrd`, `Ord`, `Debug`. All implementations are straightforward
+      and correct.
+    - `Arena<T, A>` struct: wraps a `Vec<T>` with an arena_id. Methods:
+      `new`, `with_capacity`, `alloc`, `alloc_with_id`, `next_id`, `get`,
+      `get_mut`, `iter`, `iter_mut`, `len`. All are thin wrappers around
+      `Vec` operations with arena_id checks. Clean.
+    - `Index` and `IndexMut` impls: use `assert_eq!` to panic on wrong
+      arena_id, then index into the vec. This is documented behavior (panics
+      on wrong arena).
+    - Iterator types (`Iter`, `IterMut`, `IntoIter`): all delegate to
+      `Enumerate<slice::Iter/IterMut>` or `Enumerate<vec::IntoIter>`,
+      wrapping index+item pairs into `(Id, &T)` tuples via the `add_id`
+      helper. All implement `Iterator`, `DoubleEndedIterator`, and
+      `ExactSizeIterator`. Straightforward.
+    - `alloc_with_id` has a subtle double-allocation pattern: it calls
+      `self.next_id()` then `self.alloc(val)`, and `alloc` calls
+      `self.next_id()` again internally. The second call to `next_id` will
+      return a *different* id (index is now len+1 after push), but `alloc`
+      returns the id from the second `next_id` call — which has index
+      equal to the length *before* the push (since push happens after
+      `next_id` in `alloc`). Wait, re-reading: `alloc` calls `next_id`
+      (which returns `A::new_id(arena_id, self.items.len())`) then pushes.
+      So in `alloc_with_id`: first `next_id` returns id with index=len,
+      then `self.alloc(val)` calls `next_id` again (still index=len, since
+      nothing was pushed yet), pushes, returns the id. So the returned id
+      from `alloc` matches the id passed to `f`. This is correct.
+    - Test module: single test checking `Id<Foo>` is `Send + Sync`. Fine.
+  
+  - **`src/rayon.rs` (283 lines)** — **read in full**.
+    - Implements `ParallelIterator` and `IndexedParallelIterator` for
+      `ParIter`, `ParIterMut`, and `IntoParIter`. All delegate to rayon's
+      own implementations on the underlying slice/vec iterators, wrapping
+      with `add_id`-style closures. Straightforward, no surprises.
+    - `IntoParallelIterator` impls for `&Arena`, `&mut Arena`, and `Arena`.
+      All correct.
+  
+  - **`tests/readme_up_to_date.rs` (22 lines)** — **read in full**.
+    - Test that runs `cargo readme` and compares output to `README.md`.
+      Uses `std::process::Command` to shell out to `cargo readme`. This is
+      a test-only file and does not ship in the library. No concern.
+  
+  ### Red-flag scan results
+  
+  - `unsafe`: zero hits (and `#![forbid(unsafe_code)]` enforces this).
+  - `transmute`, `from_raw`, raw pointers: none.
+  - `Command::new`, `std::env::var`: only in `tests/readme_up_to_date.rs` (test file, not library code).
+  - Network libraries (`reqwest`, `hyper`, etc.): none.
+  - `include_bytes!`, `include_str!`: none.
+  - Base64/hex blobs, obfuscated strings: none.
+  - `unwrap`/`expect`/`panic!`: `assert_eq!` in `Index`/`IndexMut` impls (expected, panics on wrong arena id). `expect` in test file only.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to be a simple id-based arena with no_std support and
+  optional rayon. The code does exactly this and nothing more. No I/O, no
+  network, no filesystem, no env vars, no FFI, no unsafe. The only
+  dependency is `rayon` (optional), which is justified. All capabilities
+  match the claims.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. All three source files and the single test file were read
+  in full. The `CHANGELOG.md`, `README.md`, `README.tpl`, and license files
+  were noted but not relevant to security review.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+bNN20w_h0xNwsAXfK4WOw2nniQxoUNr1T7uG7Ucn5ag3TjfZ0WcpiTdcvhzS86ny39aC42bKMzNtTpPNK-N8AA
+----- END CREV PROOF -----
+
