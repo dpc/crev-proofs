@@ -13238,3 +13238,110 @@ comment: |-
 BW9dF9NpFwFe3lLJFdPYXCjn5gFMvqeoBa-irSUQ4eGkXq-b9Nc7H8dJcPE7wKSjfOohXhVJQKX9e7pcILWsBQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: percent-encoding-rfc3986
+  version: 0.1.3
+  digest: 4JirVWEdrat8PfAlD3aYJ5ECNK-sVHHlcqTsIQod2sI
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: percent-encoding-rfc3986 0.1.3
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/percent-encoding-rfc3986-0.1.3
+  - Upstream repository: https://github.com/Kixunil/percent-encoding-rfc3986/
+  - Upstream commit verified: 370ce5dc1d6a7cc2f49bb997fa3b9b426b3e8789
+  - Upstream tag for version: n/a (no tags in upstream repo)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/Kixunil/percent-encoding-rfc3986/ at commit `370ce5dc1d6a7cc2f49bb997fa3b9b426b3e8789`. The commit sha was obtained from `.cargo_vcs_info.json` and confirmed to exist in the upstream repository as the latest commit on the main branch ("Instruct docs.rs to document features."). No version tags exist in the upstream repo, so tag verification was not possible, but the sha match is sufficient. The only difference is the `fuzz/` directory present upstream but excluded from the published crate (expected — fuzz targets are typically excluded via `Cargo.toml` `exclude`). Manifest `Cargo.toml.orig` is bit-for-bit identical to upstream `Cargo.toml`.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — the crate is ~570 Rust LoC across 2 source files, small enough to read carefully end-to-end.
+  
+  ### Claims baseline
+  
+  The crate claims to be an RFC 3986-compliant percent encoding and decoding library, forked from `percent_encoding` with the key difference that `%` not followed by two hex digits is an error (per RFC 3986) rather than being passed through (per URL spec). It is `#![no_std]` with optional `alloc` and `std` features.
+  
+  ### File map
+  
+  - `src/lib.rs` (664 lines) — **read in full**
+  - `src/error.rs` (31 lines) — **read in full**
+  - `Cargo.toml.orig` — **read in full**
+  - `README.md` — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: Zero runtime dependencies. Only `quickcheck = "1.0.3"` as a dev-dependency. Fully consistent with the crate's stated purpose.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **FFI surface**: None. No `extern "C"`, no bindgen, no linked C libraries.
+  - **Unsafe blocks**: 4 total, all analyzed below.
+  
+  ### Unsafe analysis
+  
+  1. **`src/lib.rs:316` — `str::from_utf8_unchecked(unchanged_slice)`** in `PercentEncode::next()`: Sound. The bytes in `unchanged_slice` are confirmed to be non-percent-encoded (not matching `should_percent_encode`), which means they are ASCII bytes that are not `%` and are within the ASCII range. ASCII bytes are valid UTF-8.
+  
+  2. **`src/lib.rs:321` — `str::from_utf8_unchecked(unchanged_slice)`**: Same reasoning as above — the remaining bytes all passed the `should_percent_encode` check negatively, confirming they are ASCII (valid UTF-8).
+  
+  3. **`src/lib.rs:458` — `core::hint::unreachable_unchecked()`** in `after_percent_sign()`: Sound. This function is only called from `PercentDecode::next()` which can only be called on a `PercentDecode` value. `PercentDecode` is only constructed inside `percent_decode()` after `validate_input()` has confirmed that every `%` byte is followed by exactly two hex digits. The `after_percent_sign` function consumes those two hex digits via `.next()?.to_digit(16)?`; since validation guarantees they exist and are hex, both `next()` and `to_digit(16)` will return `Some`, so the `unwrap_or_else(unreachable_unchecked)` is never reached.
+  
+  4. **`src/lib.rs:563` — `String::from_utf8_unchecked(bytes)`** in `decode_utf8_lossy()`: Sound. This is reached only when `String::from_utf8_lossy(&bytes)` returns `Cow::Borrowed`, which by definition means the bytes are valid UTF-8 (if they weren't, it would allocate a new string to replace invalid sequences, returning `Cow::Owned`). The `debug_assert!` on the preceding lines confirms the borrowed slice points to the same memory.
+  
+  ### Red-flag scan
+  
+  - `unsafe`, `transmute`, `from_raw`: 4 unsafe blocks analyzed above. No transmute or from_raw.
+  - `std::process::Command`, shell invocation: None.
+  - `std::env::var`: None.
+  - Network libraries (reqwest, ureq, hyper, curl, TCP): None.
+  - `include_bytes!`, `include_str!`: None.
+  - Base64/hex blobs, obfuscated strings: The `percent_encode_byte` function contains a large string literal of all 256 `%XX` encodings — this is a precomputed lookup table, not obfuscation. Each entry is 3 ASCII chars (`%` + two hex digits). Verified correct.
+  - `unwrap`, `expect`, `panic!`: One `unwrap_or_else(unreachable_unchecked)` analyzed above. No `unwrap()`/`expect()` in non-test code paths.
+  - Conditional compilation: `#[cfg(feature = "alloc")]` and `#[cfg(feature = "std")]` — straightforward feature gating, no platform-specific behavior.
+  - `Drop` impls: None.
+  - Custom serde deserializers: None (no serde dependency).
+  
+  ### Architecture summary
+  
+  The crate has a clean, minimal architecture. `AsciiSet` is a 128-bit bitmask for ASCII characters, used to configure which characters get encoded. `PercentEncode` is a borrowing iterator that yields `&str` slices (either percent-encoded single bytes or runs of unchanged ASCII). `PercentDecode` is a borrowing iterator over decoded bytes, constructed only after full input validation by `validate_input()`. The validation function uses a simple state machine (Initial/Percent/PercentAndOneHex) to ensure every `%` is followed by exactly two hex digits, returning an error otherwise. This is the core RFC 3986 difference from `percent_encoding`. The `Cow` conversions allow zero-copy when no encoding/decoding is needed. `static_assert!` uses a `transmute` trick to verify `CONTROLS` set membership at compile time.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims: RFC 3986 percent encoding/decoding, no_std, no I/O. Reality: confirmed. The crate performs only computational transformations on byte slices. No capabilities exercised beyond what is claimed.
+  - Claims: fork of `percent_encoding` with `percent_decode` returning `Result`. Reality: confirmed. The `validate_input` function enforces strict RFC 3986 semantics.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The `fuzz/` directory in upstream was not reviewed (not included in the published crate).
+  - Test code in `src/lib.rs` (lines 571-663) was read but not deeply analyzed — it exercises both success and error paths and uses quickcheck for property testing.
+  - No version tags in upstream repo, so tag-based verification was not possible. This is a minor process concern, not a code concern.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+Jvipv0PABpOoOBgtOwWkmOiRDHS0F3g76aEMAigxZ2lTJMYbkMJoF3dafle8zazDraApv5ebChw8nkk3Uy8_AA
+----- END CREV PROOF -----
+
