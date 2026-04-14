@@ -12370,3 +12370,107 @@ comment: |-
 bNN20w_h0xNwsAXfK4WOw2nniQxoUNr1T7uG7Ucn5ag3TjfZ0WcpiTdcvhzS86ny39aC42bKMzNtTpPNK-N8AA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: leb128fmt
+  version: 0.1.0
+  digest: po9xTDOVIt0ZWSxxjRd-1g3rbDveFa7YDZR1ouZbALg
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: leb128fmt 0.1.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/leb128fmt-0.1.0
+  - Upstream repository: https://github.com/bluk/leb128fmt
+  - Upstream commit verified: 8bf933b6c8aa3d1920f69d4dc71f190b626f979d
+  - Upstream tag for version: v0.1.0
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` records sha `8bf933b6c8aa3d1920f69d4dc71f190b626f979d` with `path_in_vcs: "leb128fmt"` (workspace subcrate). The upstream tag `v0.1.0` resolves to the same commit. `diff -r --brief` between the crates.io source and `upstream/leb128fmt/` at that commit shows only the expected `Cargo.toml.orig` difference (exists only in the tarball). Diffing `Cargo.toml.orig` against upstream `Cargo.toml` shows zero differences. Package matches upstream exactly.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium.** Crate is 1650 lines in a single file (`src/lib.rs`), well within the range for a careful end-to-end read.
+  
+  **Claims baseline:** The crate claims to encode and decode LEB128 variable-length compressed integers. It claims `no_std` and `no_alloc` support, no dependencies, and provides both array-based and slice-based APIs for signed and unsigned integers of various bit widths, plus macros for custom bit widths.
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**. Single file containing all code.
+  - `Cargo.toml.orig` — **read in full**.
+  - `README.md` — not read (not security-relevant; claims baseline covered by crate-level rustdoc).
+  - `CHANGELOG.md` — not read.
+  
+  ### Non-negotiable checks
+  
+  - **`build.rs`**: None present. Positive.
+  - **Dependencies**: Zero dependencies. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **`unsafe` blocks**: `rg -n 'unsafe' src/` — zero hits. No unsafe code. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  
+  ### Red-flag scan
+  
+  - No `std::process::Command`, no `std::env::var`, no network calls, no `include_bytes!`, no base64 literals, no obfuscated strings, no `Drop` impls with side effects.
+  - `unreachable!()` is used in 4 places inside `match u8::try_from(value & T::from(0x7f))` — these are genuinely unreachable since `0x7f & anything` fits in a `u8`. Not a concern.
+  - Two `assert!` macros in `decode_uint_slice` (line 688) and `decode_sint_slice` (line 1289): `assert!(BITS <= T::BITS)`. These panic on misuse (compile-time-decidable const generic mismatch). Acceptable — this is a programming error, not untrusted input.
+  
+  ### Architecture summary
+  
+  The crate provides LEB128 encoding/decoding via two complementary API styles:
+  
+  1. **Array-based** (`encode_uint_arr!`/`decode_uint_arr!`/`encode_sint_arr!`/`decode_sint_arr!` macros): const-evaluable functions that take/return fixed-size arrays. Pre-instantiated for u32/i32/u64/i64. Users can invoke the macros for custom bit widths.
+  2. **Slice-based** (`encode_uint_slice`/`decode_uint_slice`/`encode_sint_slice`/`decode_sint_slice`): generic functions using trait bounds (`UInt`/`SInt`) that work with byte slices and a mutable position cursor.
+  3. **Fixed-width** variants (`encode_fixed_*`) that always use the maximum number of bytes for a given bit size.
+  
+  Sealed traits (`UInt`, `SInt`) restrict the generic functions to primitive integer types. Error handling uses a private `InnerError` enum wrapped in a public `Error` type. The design is clean and minimal.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims `no_std` — confirmed, `#![cfg_attr(not(feature = "std"), no_std)]` and `use core::fmt`.
+  - Claims no allocation — confirmed, no `alloc` usage anywhere (the `alloc` feature exists but gates nothing in this version).
+  - Claims LEB128 encoding/decoding — confirmed, the algorithms match the LEB128 specification.
+  - No capabilities exercised beyond pure computation on byte arrays/slices. No I/O, no network, no filesystem, no env vars, no FFI.
+  
+  ### Observations
+  
+  - The `alloc` feature flag is defined but unused in this version — it gates nothing. Minor dead-feature, not a concern.
+  - Encoding validation checks whether values fit in the specified bit width and returns `None` on overflow. Decoding validates that continuation bits are consistent and that unused high bits in the final byte aren't set. The validation is slightly strict (rejects non-minimal encodings in some edge cases), which the author acknowledges in comments.
+  - The code is well-documented with extensive doc-tests and unit tests covering boundary cases (MAX, MIN, zero, non-minimal encodings, overflow).
+  - `#[cfg(feature = "std")]` only gates `impl std::error::Error for Error`.
+  - Conditional compilation is minimal and straightforward (`std` feature, `docsrs` cfg). No target-specific behavior.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `README.md` and `CHANGELOG.md` not read — these are documentation files, not executable code.
+  - The `alloc` feature flag is a no-op in this version; future versions may use it.
+  - Did not fuzz or property-test the encode/decode round-trip, but the existing test suite covers boundary values well.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+ol11VPsFs0a5qr_VCj3YVvADMgjf8ZXkBC_2uvCts2Q0xgbgaZ-LYVsHOuPZeKJpKapBAbJKekM-mx5BhbOcAw
+----- END CREV PROOF -----
+
