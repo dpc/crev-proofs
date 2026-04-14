@@ -12474,3 +12474,170 @@ comment: |-
 ol11VPsFs0a5qr_VCj3YVvADMgjf8ZXkBC_2uvCts2Q0xgbgaZ-LYVsHOuPZeKJpKapBAbJKekM-mx5BhbOcAw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T21:34:34+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: crunchy
+  version: 0.2.3
+  digest: HaYMjf9KemkMA3b_IcHFUyqI6D_-2VhhkbfEMDQSFGg
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: crunchy 0.2.3
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crunchy-0.2.3
+  - Upstream repository: https://github.com/eira-fransham/crunchy
+  - Upstream commit verified: df1e539f6b7c87b75856bdbb1292acd2c7878292
+  - Upstream tag for version: n/a (no tags in upstream repo)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/eira-fransham/crunchy at commit
+  `df1e539f6b7c87b75856bdbb1292acd2c7878292` (message: "Update Cargo.toml").
+  No version tag exists in the upstream repo — the commit was identified via
+  `.cargo_vcs_info.json`. All source files are bit-for-bit identical between the
+  crates.io tarball and the upstream checkout at that commit. `Cargo.toml.orig`
+  matches upstream's `Cargo.toml` exactly. The only differences are expected
+  packaging artifacts (`.cargo_vcs_info.json`, `Cargo.toml.orig`, `.cargo-ok`).
+  
+  ## Code review findings
+  
+  ### Thoroughness level: medium
+  
+  Justification: The crate has approximately 40 LoC in `src/lib.rs` and 253 LoC in
+  `build.rs`, totalling ~293 Rust LoC. This is well under 300, so a medium/high
+  thoroughness review is appropriate.
+  
+  ### Claims baseline
+  
+  The crate claims to provide a macro (`unroll!`) that deterministically unrolls
+  constant loops for performance ("number crunching"). It uses a build script to
+  code-generate the `unroll!` macro with match arms for each possible loop count up
+  to a configurable limit. Supports `no_std`. Zero runtime dependencies.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: **Read in full.** The build script generates a `lib.rs` file in
+    `OUT_DIR` containing the `unroll!` macro definition. It:
+    - Reads only `OUT_DIR` from the environment (line 23) — standard and expected.
+    - Creates a single file at `$OUT_DIR/lib.rs` (line 24-25) — writes only inside
+      `OUT_DIR`, which is correct.
+    - Contains no network calls, no shelling out, no reading of home directories or
+      sensitive paths.
+    - The generated code is a `macro_rules!` macro with match arms for each integer
+      from 0 to `limit` (default 64, configurable up to 2048 via features). For
+      small values (≤16), it generates explicit `const` bindings for each iteration.
+      For larger values, it uses a divide-and-conquer recursive strategy (splitting
+      into halves).
+    - Also generates a `#[cfg(all(test, feature = "std"))]` test module exercising
+      the macro.
+    - **No red flags.** This is a straightforward, well-structured code generator.
+  
+  - **Dependencies**: Zero runtime dependencies (only build-time code generation).
+    This is excellent for a utility macro crate.
+  
+  - **Proc-macro**: Not a proc-macro crate. Uses `build.rs` + `include!` instead.
+  
+  - **Unsafe blocks**: `rg -n 'unsafe' src/lib.rs` — none found. The generated code
+    also contains no `unsafe` (verified by reading the build.rs output template).
+  
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** — **Read in full.** 40 lines. Contains:
+    - Crate-level rustdoc explaining the purpose (lines 1-32).
+    - `#![cfg_attr(not(feature = "std"), no_std)]` — expected for a `no_std`-capable crate.
+    - `include!(concat!(env!("OUT_DIR"), "\\lib.rs"))` on Windows (line 37).
+    - `include!(concat!(env!("OUT_DIR"), "/lib.rs"))` on non-Windows (line 40).
+    - This is the entire runtime code — just an include of the build-generated macro.
+    - No red flags. No `unsafe`, no I/O, no network, no env vars at runtime.
+  
+  - **build.rs** — **Read in full.** 253 lines. Detailed findings above under
+    "Non-negotiable checks". The code generation logic is clear and deterministic:
+    - Lines 1-4: Standard imports (env, fs::File, io::Write, path::Path).
+    - Lines 6: `LOWER_LIMIT` constant = 16 (threshold for switching from linear to
+      recursive unrolling strategy).
+    - Lines 8-21: Feature-flag based limit selection.
+    - Lines 23-25: Create output file in `OUT_DIR`.
+    - Lines 29-121: Generate the public macro arms (for-loop syntax variants:
+      `0..N`, `start..end`, `(start..end).step_by(s)`, bounded variants with `< max`).
+    - Lines 123-148: Generate per-integer match arms. For i ≤ 16, linear expansion.
+      For i > 16, recursive halving. This is the core loop-unrolling mechanism.
+    - Lines 150: Close the macro.
+    - Lines 152-250: Generate test module with several test cases (invalid range,
+      step_by, start_at_one, comprehensive test_all).
+    - Line 252: Write output.
+    - All `unwrap()` calls are on `env::var("OUT_DIR")` and file I/O — standard for
+      build scripts and will produce clear panic messages if something is wrong with
+      the build environment.
+  
+  - **Cargo.toml.orig** — **Read in full.** Clean manifest. Zero dependencies.
+    Features are just limit selectors. Default feature is `limit_128`.
+  
+  - **README.md** — **Read in full.** Matches crate-level rustdoc. Consistent with
+    actual behavior.
+  
+  - **LICENSE** — Not read (not relevant to security/correctness review).
+  
+  ### Red-flag scan results
+  
+  Searched for all red-flag patterns across both source files:
+  - `unsafe`, `transmute`, `from_raw`: None.
+  - `std::process::Command`, shell invocation: None.
+  - `std::env::var`: Only in build.rs line 23 for `OUT_DIR` — expected and benign.
+  - Network libraries (`reqwest`, `ureq`, etc.): None.
+  - `include_bytes!`, `include_str!`: None (the `include!` in lib.rs includes
+    generated Rust code from OUT_DIR, not arbitrary data).
+  - Base64/hex blobs, obfuscated strings: None.
+  - `unwrap`/`expect`/`panic!`: Three `unwrap()` calls in build.rs on env var and
+    file operations — standard for build scripts, not processing untrusted input.
+  - Conditional compilation: `#[cfg(target_os = "windows")]` in lib.rs for path
+    separator — benign and correct.
+  - `Drop` impls: None.
+  - Custom serde deserializers: None.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to provide deterministic loop unrolling via a macro. The code
+  does exactly this and nothing more. The build script generates the macro, writing
+  only to `OUT_DIR`. There are zero runtime dependencies. No capabilities are
+  exercised beyond what is claimed. The `no_std` support works via a simple
+  `cfg_attr`. Everything checks out.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of crunchy at any version exist in the local proof database
+  (`cargo crev repo query review crunchy` returned empty).
+  
+  ## Open questions / things skipped
+  
+  - LICENSE file not read (MIT license per Cargo.toml — not relevant to code review).
+  - No version tags exist in the upstream repo, so the commit was verified only via
+    `.cargo_vcs_info.json` sha match. This is a minor process concern but the code
+    content matches exactly.
+  - The generated macro could theoretically produce very large expansion for
+    `limit_2048`, but this is documented behavior and controlled by opt-in features.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+56JaQk09-05Iv3WB8izJdJm7HzKCtNuxLU7gazuyN1sEQQbtnzWZhANBL6g62pwkll-KK0nKppre1tOhkl5eAA
+----- END CREV PROOF -----
+
