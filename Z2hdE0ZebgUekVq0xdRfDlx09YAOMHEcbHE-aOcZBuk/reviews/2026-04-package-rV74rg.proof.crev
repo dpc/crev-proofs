@@ -12856,3 +12856,159 @@ comment: |-
 rGImz0KlmUUh4Qjb3wwlaSDHPyNswLBOOqAr1HguRqm7Tj9Jo5EfRiF-kS675pLnBPAAFfWEf7_YDsoz1JOkCA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: smawk
+  version: 0.3.2
+  digest: Op_kicR7HFjnh7q1BzFsNUbrbJph1lCjcZFaml9O2mc
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: smawk 0.3.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/smawk-0.3.2
+  - Upstream repository: https://github.com/mgeisler/smawk
+  - Upstream commit verified: df374f7cf7611a1026e49b72d9ed87d1cbf8d464
+  - Upstream tag for version: 0.3.2
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The sha in `.cargo_vcs_info.json` (`df374f7cf7611a1026e49b72d9ed87d1cbf8d464`) matches the
+  `0.3.2` tag in the upstream repository at https://github.com/mgeisler/smawk. A recursive diff
+  of the crate tarball against the upstream checkout at that commit shows zero differences
+  (excluding expected files: `.cargo_vcs_info.json`, `.cargo-ok`, `Cargo.toml` rewritten by
+  publish, `.github/`, `benches/`, `examples/` which are excluded via `Cargo.toml` `exclude`).
+  The `Cargo.toml.orig` from the tarball is identical to the upstream `Cargo.toml`.
+  
+  Package matches public repo https://github.com/mgeisler/smawk at commit
+  `df374f7cf7611a1026e49b72d9ed87d1cbf8d464` tagged `0.3.2`. All non-excluded files are
+  bit-for-bit identical.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — crate has ~830 lines of src Rust code (excluding tests),
+  small enough to read end-to-end carefully.
+  
+  ### Claims baseline
+  
+  The crate claims to implement the SMAWK algorithm for finding row/column minima in totally
+  monotone matrices in O(m+n) time. It also provides an online variant where matrix entries can
+  depend on previously computed column minima. Optional `ndarray` feature adds brute-force and
+  recursive reference implementations for testing.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **Dependencies**: Only `ndarray` (optional). Dev-dependencies are `num-traits`, `rand`,
+    `rand_chacha`, `version-sync` — all reasonable for testing. No suspicious dependencies.
+  - **Unsafe code**: `#![cfg_attr(not(feature = "ndarray"), forbid(unsafe_code))]` — unsafe is
+    forbidden when the `ndarray` feature is disabled. When `ndarray` is enabled, the `s!` macro
+    from ndarray uses unsafe internally. The crate's own code contains zero `unsafe` blocks.
+    Positive.
+  - **FFI surface**: None. Positive.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** (570 lines) — **read in full**. Contains:
+    - `Matrix` trait: simple read-only matrix abstraction (`nrows`, `ncols`, `index`). Clean.
+    - `Vec<Vec<T>>` impl: straightforward. Will panic on empty matrix (`self[0].len()`), which
+      is documented behavior.
+    - `ndarray::Array2` impl: guarded by `cfg(feature = "ndarray")`. Delegates directly to
+      ndarray methods. Clean.
+    - `row_minima` / `column_minima`: public API. Create index vectors then delegate to
+      `smawk_inner`. The transpose trick (swapping i/j in the closure) to reuse the same inner
+      function for both row and column minima is elegant and correct.
+    - `smawk_inner`: the core SMAWK algorithm. Implements the REDUCE + recursive step. The stack
+      is used to prune rows (the REDUCE step), then odd columns are recursed on, and even columns
+      are filled by scanning between known boundaries. The implementation closely follows the
+      classical SMAWK algorithm structure. No unsafe, no panics on valid input, no I/O.
+    - `online_column_minima`: online variant. Uses a macro `m!` for bounds-checked matrix
+      access with assert. The four cases (new tentative, diagonal minimum, no improvement,
+      new column minimum at tentative) are clearly commented and correspond to the known online
+      SMAWK algorithm. No unsafe, no I/O.
+    - Deprecated wrappers `smawk_row_minima` / `smawk_column_minima` delegate cleanly.
+    - Test module: comprehensive unit tests for small matrices and the online variant. Also
+      tests `PartialOrd` (floating point) support. Clean.
+  
+  - **src/monge.rs** (121 lines) — **read in full**. Contains `is_monge` function that checks
+    the Monge property with careful overflow handling via `Wrapping<T>`. The `checked_add` inner
+    function detects overflow by comparing the sum against its operand. The four match arms
+    correctly handle the no-overflow, double-overflow, and single-overflow cases. Tests verify
+    overflow handling with u8 matrices. Clean, pure computation.
+  
+  - **src/brute_force.rs** (150 lines) — **read in full**. Guarded by `cfg(feature = "ndarray")`.
+    Simple brute-force implementations using ndarray iterators. `lane_minimum` uses
+    `min_by_key` which is correct. `expect("empty lane in matrix")` is the only panic path —
+    reasonable for an empty matrix. Clean.
+  
+  - **src/recursive.rs** (191 lines) — **read in full**. Guarded by `cfg(feature = "ndarray")`.
+    Implements the recursive O(m + n log m) algorithm for reference/testing. Uses the `s!` macro
+    from ndarray (which internally uses unsafe). The recursive structure is: find the minimum of
+    the middle row/column by brute force, then recurse on top-left and bottom-right submatrices.
+    The `Direction` enum with monomorphization through a generic `F: Fn() -> Direction` is a
+    clean pattern to generate specialized code for row vs column minima. Clean.
+  
+  ### Red-flag scan results
+  
+  - `unsafe`: none in crate code (forbidden by `forbid(unsafe_code)` when ndarray feature off).
+  - `transmute`, `from_raw`, raw pointers: none.
+  - `std::process::Command`, shell invocation: none.
+  - `std::env::var`: none.
+  - Network libraries: none.
+  - `include_bytes!`, `include_str!`: none.
+  - Obfuscated strings, base64 blobs: none.
+  - No I/O, no filesystem access, no environment variable access, no process spawning.
+  
+  ### Architecture summary
+  
+  Pure algorithmic crate. Four source files implement three algorithms (SMAWK, recursive,
+  brute-force) plus a Monge matrix checker. The core SMAWK algorithm in `smawk_inner` is the
+  only non-trivially complex code — it's a well-known algorithm faithfully translated from
+  David Eppstein's Python implementation. The public API consists of `row_minima`,
+  `column_minima`, `online_column_minima`, the `Matrix` trait, and the `monge::is_monge`
+  function. No global state, no I/O, no unsafe code (with default features).
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims: functions for finding row-minima in a totally monotone matrix → confirmed, that's
+    exactly what the code does.
+  - No capabilities beyond pure computation. No network, filesystem, process, env, FFI, or
+    unsafe usage with default features.
+  - The `ndarray` feature adds ndarray-dependent modules but introduces no new capabilities
+    beyond matrix operations.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - Test files (`tests/`) were not reviewed in full — they are integration tests using random
+    Monge matrices to verify agreement between brute-force and SMAWK implementations. Glanced
+    at structure but did not trace in detail.
+  - The `dprint.json` and `rustfmt.toml` config files were not reviewed (formatting config only).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+WJTN1woOdtil60e-fbPYzFP6Q-Xt9PyOAoie4D-b3VYcb1VoRB0XZFisTeGNESzDSgPvbSnrCDyPIM1gFW_pBg
+----- END CREV PROOF -----
+
