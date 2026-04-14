@@ -14385,3 +14385,96 @@ comment: |-
 ABGrwwY-HBxljtaHzO_H2hvPijn2Z_bWY6wWyBwCr9lsB3FSYWotqwwErDxdw_tj7Sp-0Qxq-TRa5Uh8iBDcAw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: assert_matches
+  version: 1.5.0
+  digest: nKz9JPhjkkzl7HQRSG4-NzCEoAXvL-3wr1Ypsj1XUVk
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: assert_matches 1.5.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/assert_matches-1.5.0
+  - Upstream repository: https://github.com/murarth/assert_matches
+  - Upstream commit verified: 969a37d5ad1d2a9060839ada3e400c4d6483f877
+  - Upstream tag for version: n/a (commit is the master branch tip, titled "Release version 1.5.0"; no version tag found)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` records sha `969a37d5ad1d2a9060839ada3e400c4d6483f877`. This matches the master branch tip in the upstream repo (commit message: "Release version 1.5.0"). No version tags exist in the repository. `diff -r --brief` between the crate source and the upstream checkout (excluding expected files) shows zero differences. `Cargo.toml.orig` is identical to the upstream `Cargo.toml`. Verification passes cleanly.
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — crate has 324 LoC in a single source file, small enough for a careful end-to-end read.
+  
+  ### Claims baseline
+  
+  The crate claims to provide `assert_matches!` and `debug_assert_matches!` macros for testing whether a value matches a given pattern, panicking on failure. It is `no_std`-compatible. No dependencies. No build script. No proc macros. No FFI. No unsafe code.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: Not present. Positive.
+  - **Cargo.toml dependency list**: Zero dependencies. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **Unsafe blocks**: `rg -n 'unsafe'` — zero hits. Positive.
+  - **FFI surface**: None. Positive.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** — **read in full**:
+    - Lines 1–15: Crate-level rustdoc and attributes. `#![cfg_attr(not(test), no_std)]` is correct for a no_std macro crate.
+    - Lines 17–120: `assert_matches!` macro with 8 match arms covering all combinations of (pattern, guard, arm expression, custom message). Each arm uses `match $e { pat => result, ref e => panic!(...) }`. The logic is straightforward and correct. Using `ref e` in the fallback arm avoids moving the value, which is the right pattern.
+    - Lines 122–145: `debug_assert_matches!` delegates to `assert_matches!` when `cfg!(debug_assertions)` is true, via a helper macro `_assert_matches_cfg!`. The indirection through `_assert_matches_cfg!` is a standard workaround for hygiene with `cfg!` in macro_rules. Correct.
+    - Lines 147–324: Test module. Comprehensive tests covering success, panic, multiple patterns with `|`, guard expressions, arm expressions, custom messages, panic message formatting, and non-move semantics. All tests are well-structured.
+  
+  - **tests/selective_import1.rs** — **read in full**: Tests `#[macro_use(assert_matches)]` selective import. 9 lines. Correct.
+  - **tests/selective_import2.rs** — **read in full**: Tests `#[macro_use(debug_assert_matches)]` selective import. 9 lines. Correct.
+  - **Cargo.toml.orig** — **read in full**: Minimal, no dependencies, dual MIT/Apache-2.0 license. Correct.
+  - **README.md** — not present in crate tarball (excluded by publish settings), but the crate-level rustdoc serves the same purpose.
+  
+  ### Red-flag scan
+  
+  No hits for: unsafe, transmute, Command, std::env::var, reqwest, include_bytes!, base64 literals, obfuscated strings, conditional compilation beyond the expected `cfg(test)` and `cfg(debug_assertions)`.
+  
+  ### Architecture summary
+  
+  This is a pure `macro_rules!`-only crate with no runtime code, no dependencies, and no build-time code execution. The entire crate is a single file defining two macros (`assert_matches!` and `debug_assert_matches!`) plus a helper macro for cfg hygiene. The macro implementation is a straightforward pattern-match delegation to Rust's `match` statement. The crate does exactly what it claims and nothing more.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims to provide pattern-matching assertion macros — confirmed, that's all it does.
+  - Claims no_std — confirmed via `#![cfg_attr(not(test), no_std)]`.
+  - No capabilities exercised beyond what's claimed. No I/O, no network, no env access, no processes, no FFI, no unsafe.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. All files in the crate were read in full.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+I34Kk7jUYKIx28xd7iNIuJ6th20inRkLHJxWdA-x4M29on9cXhl2Y4MTZRQlHU7vCb2AZieOL1t1SMEeTkOGCw
+----- END CREV PROOF -----
+
