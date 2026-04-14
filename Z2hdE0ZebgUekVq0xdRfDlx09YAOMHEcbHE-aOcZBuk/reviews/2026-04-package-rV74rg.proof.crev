@@ -13845,3 +13845,113 @@ comment: |-
 siEa-ftm914NP1kxdNL0np5RVmat6EMDpRi94NR5mffN1XXHvszjRJHh8XG7sPZF_m4e5MpZLwp0JlJgzAnGDg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T22:38:21.707598916+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: atomic-waker
+  version: 1.1.2
+  digest: duNvoVlGenYYbWhulCva2bT9SvUWqfyGft2H-Clnias
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: atomic-waker 1.1.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/atomic-waker-1.1.2
+  - Upstream repository: https://github.com/smol-rs/atomic-waker
+  - Upstream commit verified: 9969a29ccd1fe298e2df7346849c0095ba303a64
+  - Upstream tag for version: v1.1.2
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  The crate claims to be an extraction of `futures::task::AtomicWaker` into its own crate — a synchronization primitive for task wakeup in async Rust. It is `#![no_std]`, has an optional `portable-atomic` feature for targets without native atomics. It should exercise no capabilities beyond atomic operations and waker manipulation.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/smol-rs/atomic-waker at commit `9969a29ccd1fe298e2df7346849c0095ba303a64`, which is tagged `v1.1.2`. The `.cargo_vcs_info.json` sha and the version tag point to the same commit. All source files (`src/lib.rs`, `benches/waker.rs`, `tests/basic.rs`, `README.md`, `CHANGELOG.md`, `LICENSE-APACHE`, `LICENSE-MIT`) are bit-for-bit identical between the crates.io tarball and upstream at this commit. `Cargo.toml.orig` is identical to upstream's `Cargo.toml`.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — Crate is 443 LoC in a single source file, small enough to read carefully end-to-end.
+  
+  ### File map
+  
+  - `src/lib.rs` (443 lines) — **read in full**
+  - `tests/basic.rs` (50 lines) — **read in full**
+  - `benches/waker.rs` (98 lines) — **read in full**
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc macros**: None. Positive.
+  - **FFI surface**: None. Positive.
+  - **Dependencies**: Only `portable-atomic` (optional), `criterion`/`futures`/`rayon` (dev-only). All appropriate for the crate's purpose.
+  
+  ### Unsafe enumeration
+  
+  Four `unsafe` blocks and two `unsafe impl` traits:
+  
+  1. **`register()` method, lines 292–349**: Two accesses to `self.waker.get()` (UnsafeCell raw pointer dereference). Protected by the REGISTERING state bit acting as a spinlock acquired via `compare_exchange(WAITING, REGISTERING, Acquire, Acquire)`. Only the thread that successfully transitions WAITING→REGISTERING can access the waker cell. The lock is released by CAS back to WAITING (or swap to WAITING if WAKING was set concurrently). **Sound**: the state machine provides mutual exclusion; no aliasing of the `&mut` derived from the raw pointer is possible while the lock is held.
+  
+  2. **`register()` line 332**: `(*self.waker.get()).take().unwrap()` — takes the waker when the concurrent WAKING bit was detected. The `unwrap()` is safe because this path is only reached when REGISTERING|WAKING is the state, meaning a waker was just stored on the lines above (line 298). **Sound**.
+  
+  3. **`take()` method, line 406**: `(*self.waker.get()).take()` — takes the waker after acquiring the WAKING lock via `fetch_or(WAKING, AcqRel)` from state WAITING. Only one thread can observe the WAITING→WAKING transition. Lock is released via `fetch_and(!WAKING, Release)`. **Sound**: same mutual exclusion argument.
+  
+  4. **`unsafe impl Send for AtomicWaker`**: The struct contains `UnsafeCell<Option<Waker>>` which is not auto-Send. Since `Waker: Send + Sync` and the atomic state machine prevents concurrent access to the UnsafeCell, this is **sound**.
+  
+  5. **`unsafe impl Sync for AtomicWaker`**: Same reasoning — the atomic state machine ensures mutual exclusion over the UnsafeCell contents. **Sound**.
+  
+  ### Memory ordering analysis
+  
+  - Lock acquisition uses `Acquire` (or `AcqRel` for `fetch_or` in `take()`), ensuring visibility of the waker cell contents.
+  - Lock release uses `Release` (plain release in `take()`) or `AcqRel` (in `register()` when concurrent WAKING detected), ensuring the stored waker is visible to the next accessor.
+  - The `swap(WAITING, AcqRel)` in the REGISTERING|WAKING path correctly acquires all prior WAKING releases and releases the waker write.
+  - Orderings appear correct and conservative.
+  
+  ### Red-flag scan
+  
+  - No `transmute`, `from_raw`, raw pointer arithmetic.
+  - No `std::process::Command`, shell invocation, env var access.
+  - No network calls, filesystem access, `include_bytes!`, obfuscated strings.
+  - No base64/hex blobs, no conditional compilation beyond the `portable-atomic` feature gate (which is straightforward — swaps `core::sync::atomic::AtomicUsize` for `portable_atomic::AtomicUsize`).
+  - `unwrap()` on line 332: safe — only reachable when waker was just stored.
+  
+  ### Architecture summary
+  
+  Single type `AtomicWaker` with two fields: an `AtomicUsize` state (2-bit state machine: WAITING=0, REGISTERING=0b01, WAKING=0b10) and an `UnsafeCell<Option<Waker>>`. The `register()` method stores a waker under the REGISTERING lock; `take()`/`wake()` retrieve/wake it under the WAKING lock. Concurrent register+wake is handled by having the registering thread detect the WAKING bit and perform the wake itself. Well-documented state machine with detailed comments explaining every transition.
+  
+  ### Claims vs reality reconciliation
+  
+  - Crate claims: synchronization primitive for task wakeup. ✓
+  - Capabilities exercised: atomic operations, waker clone/wake. All justified.
+  - No unjustified capabilities found.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped — all source files read in full.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+PtUImcMEBM5ktI0FwR_aUkqpXpzw77yovdNH2eolWb-JIdZP6F05DV08I8UGSFThRdYPa6Ld4bNbGxGYtQuJBw
+----- END CREV PROOF -----
+
