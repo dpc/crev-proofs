@@ -13104,3 +13104,137 @@ comment: |-
 8kLiHTSGBjw_fI644mGjxbu0inOdWrlwsoLZw7ImYGNj3djneAMQ_1iVB7LtACquHPXkHi4qu_gUT9f80sv1Dg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T21:54:53+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: byteorder-lite
+  version: 0.1.0
+  digest: HYA1SbgW0QzaZnfTKMTR3dyPdcVxtwrOfc2XggfE_jM
+review:
+  thoroughness: low
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: byteorder-lite 0.1.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-lite-0.1.0
+  - Upstream repository: https://github.com/image-rs/byteorder-lite
+  - Upstream commit verified: 7d44da06a48fe10d7e23efd9a932d18a7a2def63
+  - Upstream tag for version: n/a (no tags in the repo)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/image-rs/byteorder-lite at commit
+  `7d44da06a48fe10d7e23efd9a932d18a7a2def63` (the HEAD of the repo, matching
+  `.cargo_vcs_info.json`). No version tags exist in the repo — this is the only
+  version published so far.
+  
+  Files only on the upstream side: `benches/`, `COPYING`, `rustfmt.toml` — all excluded
+  by the `include` directive in Cargo.toml, which is expected. `Cargo.toml.orig` is
+  identical to the upstream `Cargo.toml`. All other files are bit-for-bit identical.
+  
+  ## Code review findings
+  
+  **Thoroughness level: low** — 5049 total lines across 2 source files, but the vast
+  majority is doc comments and repetitive trait method implementations following the
+  same pattern. A red-flag scan plus structural review is appropriate.
+  
+  **Claims baseline:** The crate claims to be a fork of `byteorder` that sets
+  `#![forbid(unsafe_code)]`, providing `ByteOrder`, `ReadBytesExt`, and `WriteBytesExt`
+  traits for reading/writing integers in big-endian and little-endian byte order. It
+  supports `no_std` (without the `std` feature). No network, filesystem, process, env,
+  or FFI capabilities are claimed.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: Zero runtime dependencies. Only dev-dependencies
+    (`quickcheck`, `rand`) which don't affect users. Positive — matches the "pure
+    encoding" claim.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: Zero. The crate has `#![forbid(unsafe_code)]` at line 68 of
+    lib.rs, confirmed by grep. This is the crate's entire raison d'être (safe fork of
+    byteorder). Positive.
+  - **FFI surface**: None. Positive.
+  
+  ### Red-flag scan
+  
+  Searched for: `unsafe`, `transmute`, `from_raw`, `Command`, `process`, `env::var`,
+  `reqwest`, `include_bytes`, `include_str`, base64 literals, obfuscated strings.
+  No hits on any red-flag pattern.
+  
+  ### File-by-file review
+  
+  - **src/lib.rs** (3983 lines): **Read in full (red-flag scan, plus careful review of
+    all non-doc-comment code).** The file consists of:
+    - Crate-level docs and attributes (lines 1–74): `#![forbid(unsafe_code)]`,
+      `#![deny(missing_docs)]`, conditional `no_std`.
+    - Helper functions `extend_sign`, `extend_sign128`, `unextend_sign`,
+      `unextend_sign128`, `pack_size`, `pack_size128` (lines 84–116): Pure arithmetic
+      on primitives using shifts. Correct.
+    - Sealed trait pattern (lines 118–124): Standard.
+    - `ByteOrder` trait definition (lines 161–1665): Extensive trait with read/write
+      methods for u16/u32/u64/u128/uint/uint128/i16/i32/i64/i128/int/int128/f32/f64
+      and their slice variants. Default implementations for signed/float types delegate
+      to unsigned counterparts with casts. Slice methods use `read_slice!`/`write_slice!`
+      macros. All pure, no I/O.
+    - `BigEndian`, `LittleEndian` enum definitions (lines 1665–1707): Empty enums with
+      `Default` impls that panic (these are type-level markers, never instantiated).
+    - Type aliases `BE`, `LE`, `NetworkEndian`, `NativeEndian` (lines 1677–1755):
+      Straightforward.
+    - `read_slice!` and `write_slice!` macros (lines 1761–1789): Use `chunks_exact` and
+      `try_into().unwrap()` — the unwrap is safe because `chunks_exact(SIZE)` guarantees
+      each chunk is exactly SIZE bytes.
+    - `impl ByteOrder for BigEndian` (lines 1791–2055): Uses `from_be_bytes`/`to_be_bytes`
+      with slice-to-array conversion via `try_into().unwrap()`. The unwrap is safe because
+      the slice is always sized by the preceding slice operation (e.g., `buf[..2]` for u16).
+    - `impl ByteOrder for LittleEndian` (lines 2057–2321): Mirror of BigEndian using
+      `from_le_bytes`/`to_le_bytes`. Same pattern.
+    - `mod test` (lines 2322–3320): Extensive test suite with quickcheck property tests.
+    - `mod stdtests` (lines 3321–3983): Tests for `ReadBytesExt`/`WriteBytesExt`.
+  
+  - **src/io.rs** (1066 lines): **Read in full (red-flag scan, plus careful review of
+    implementation patterns).** Contains:
+    - `ReadBytesExt` trait (lines 27–558): Extension trait on `io::Read`. Each method
+      reads bytes into a fixed-size buffer via `read_exact`, then delegates to `ByteOrder`
+      for conversion. Pattern is uniform and correct. The trait has a blanket impl
+      (`impl<R: io::Read + ?Sized> ReadBytesExt for R {}`).
+    - `WriteBytesExt` trait (lines 560–1066): Extension trait on `io::Write`. Each method
+      converts via `ByteOrder` into a fixed-size buffer, then calls `write_all`. Same
+      uniform pattern. Blanket impl for all `io::Write`.
+  
+  ### Claims vs. reality reconciliation
+  
+  The crate claims: pure byte-order conversion, no unsafe, no_std support. Reality
+  matches exactly. No network, filesystem, process, or env access. Zero dependencies.
+  The `#![forbid(unsafe_code)]` attribute is present and enforced.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - Test code (lines 2322–3983 of lib.rs) was scanned for red flags but not analyzed
+    for correctness — tests don't affect users.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: low
+  - understanding: medium
+----- SIGN CREV PROOF -----
+BW9dF9NpFwFe3lLJFdPYXCjn5gFMvqeoBa-irSUQ4eGkXq-b9Nc7H8dJcPE7wKSjfOohXhVJQKX9e7pcILWsBQ
+----- END CREV PROOF -----
+
