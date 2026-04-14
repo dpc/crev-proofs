@@ -13955,3 +13955,98 @@ comment: |-
 PtUImcMEBM5ktI0FwR_aUkqpXpzw77yovdNH2eolWb-JIdZP6F05DV08I8UGSFThRdYPa6Ld4bNbGxGYtQuJBw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: send_wrapper
+  version: 0.6.0
+  digest: 0KZMIg2dO-QeyDw635hy6cRbTCvNZV9zuDCZ6uMHB-c
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: send_wrapper 0.6.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/send_wrapper-0.6.0
+  - Upstream repository: https://github.com/thk1/send_wrapper
+  - Upstream commit verified: 1d005016d15a301af42e5a3fdc1369d9badb1f23
+  - Upstream tag for version: n/a (no v0.6.0 tag; commit is master HEAD with message "Bump version")
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `1d005016d15a301af42e5a3fdc1369d9badb1f23`, which matches `master@origin` in the upstream repo. No version-specific tag exists for v0.6.0 (tags go up to v0.5.0), but the HEAD commit is titled "Bump version" and the Cargo.toml at that commit contains `version = "0.6.0"`. A recursive `diff -r --brief` between the crate source and the upstream checkout (excluding expected cargo-publish artifacts) showed zero differences. `Cargo.toml.orig` is identical to the upstream `Cargo.toml`.
+  
+  ## Code review findings
+  
+  ### Claims baseline
+  
+  The crate claims to provide a `SendWrapper<T>` type that implements `Send` and `Sync` for any `T`, enforcing at runtime (via panics) that the wrapped value is only accessed/dropped from the thread that created the wrapper. Optional `futures` feature adds `Future` and `Stream` impls. No I/O, no network, no filesystem, no env vars, no FFI, no build script, no proc macros.
+  
+  ### Thoroughness: medium
+  
+  Single-file crate (~410 lines including tests), plus a small `futures.rs` (~100 lines including tests). Both files read in full.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: Only `futures-core` (optional, behind `futures` feature). Appropriate for the stated purpose.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: 4 total (enumerated below).
+  - **FFI surface**: None.
+  
+  ### File-by-file analysis
+  
+  **src/lib.rs — read in full**
+  
+  1. **`unsafe impl Send for SendWrapper<T> {}`** (line 160) and **`unsafe impl Sync for SendWrapper<T> {}`** (line 161): These are the core unsafety. The safety argument is: `SendWrapper` stores the creating thread's `ThreadId` and panics on any deref/drop from a different thread, so the inner `T` is never actually accessed cross-thread. The `Send` impl is sound because moving the wrapper to another thread doesn't access `T`; any subsequent access checks the thread id. The `Sync` impl is sound because `&SendWrapper<T>` can only deref (which checks the thread) — shared references from other threads will panic before touching `T`. This reasoning is standard and well-established for this pattern.
+  
+  2. **`unsafe { ManuallyDrop::take(&mut this.data) }`** in `take()` (line 142): Called after `assert_valid_for_deref()` and after wrapping `self` in `ManuallyDrop` to prevent double-drop. Sound: the value is moved out exactly once, and `self` is consumed.
+  
+  3. **`unsafe { ManuallyDrop::drop(&mut self.data) }`** in `Drop::drop()` (line 227): Called only when `!needs_drop::<T>() || self.valid()`. Sound: either the drop is trivial (no actual access to `T` occurs) or we're on the correct thread.
+  
+  4. **`unsafe { self.map_unchecked_mut(Self::deref_mut) }.poll(cx)`** in `Future::poll()` and `Stream::poll_next()` (futures.rs lines 27, 48): `map_unchecked_mut` is used to project `Pin<&mut SendWrapper<F>>` to `Pin<&mut F>`. The safety argument: `SendWrapper` stores `data: ManuallyDrop<T>` which is structurally pinned (the wrapper never moves the inner value relative to itself after construction). The thread check via `assert_valid_for_poll()` precedes the unsafe. Sound.
+  
+  ### Drop impl side effects
+  
+  The `Drop` impl (line 201-233) has a notable behavior: if dropped from the wrong thread and `T` needs dropping, it panics — unless the thread is already unwinding, in which case it silently leaks `T` (the `ManuallyDrop` inner value is never dropped). This is documented behavior and is a reasonable design choice to avoid double-panics/aborts. The leak is the lesser evil.
+  
+  ### Red-flag scan
+  
+  - No `std::process::Command`, no `std::env::var`, no network calls, no `include_bytes!`, no obfuscated strings, no base64/hex blobs, no conditional compilation that changes behavior across targets (only `#[cfg(feature = "futures")]` and `#[cfg(docsrs)]`).
+  - `panic!` is used intentionally for the thread-safety invariant enforcement — this is the core design, not a bug.
+  
+  ### Minor observations
+  
+  - The crate uses `const DEREF_ERROR: &'static str = ...` inside functions (lines 268, 276, 286). The `'static` lifetime annotation is redundant for string literals but harmless.
+  - No `#[must_use]` on `SendWrapper::new()` — a minor ergonomic gap but not a defect.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  - Test code was read but not deeply analyzed for correctness — tests exercise the expected panic paths and happy paths, which is good coverage for this small crate.
+  - The `futures` feature integration was not tested (only code-reviewed).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+n8iVES-8DeXUkr0HoVzTWiti76pTU1fqqG5n-6Zzl76PsDReLvj6I5KaYFMWmJ9YrGWxqEpkq0kTCdhL7A4OBA
+----- END CREV PROOF -----
+
