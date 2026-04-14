@@ -12641,3 +12641,103 @@ comment: |-
 56JaQk09-05Iv3WB8izJdJm7HzKCtNuxLU7gazuyN1sEQQbtnzWZhANBL6g62pwkll-KK0nKppre1tOhkl5eAA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T21:37:13+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: lru-slab
+  version: 0.1.2
+  digest: j8iwZcTXYSCW2e9Zv9r2e0wa1boxq2HXr7Ulu7MZ2gU
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: lru-slab 0.1.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lru-slab-0.1.2
+  - Upstream repository: https://github.com/Ralith/lru-slab
+  - Upstream commit verified: bc52d21 (HEAD)
+  - Upstream tag for version: n/a (no tags in upstream repo)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  No `.cargo_vcs_info.json` present in the published crate. The upstream repository has no tags at all. However, the HEAD commit (bc52d21, message "Bump version") has `version = "0.1.2"` in its Cargo.toml, matching the published version. A recursive diff of the crate source against the upstream HEAD (excluding Cargo.toml normalization artifacts, Cargo.lock, and .cargo-ok) showed zero differences — all files are bit-for-bit identical.
+  
+  Manifest comparison: `Cargo.toml.orig` matches upstream `Cargo.toml` exactly (same content at HEAD).
+  
+  ## Claims baseline
+  
+  The crate claims to be: "Pre-allocated storage with constant-time LRU tracking." It is a `no_std`-compatible data structure (using `alloc`) that provides a slab allocator with built-in doubly-linked-list LRU ordering. Zero external dependencies.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — The crate is a single 474-line file (including tests). Small enough to read carefully end-to-end.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Dependencies**: Zero external dependencies. Only uses `alloc` and `core`. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  - **Unsafe blocks**: 2 unsafe blocks found, both in `IterMut` implementation. Analyzed below.
+  
+  ### File map
+  
+  - `src/lib.rs` (474 lines): **read in full**
+  
+  ### Architecture summary
+  
+  `LruSlab<T>` is a `Box<[Slot<T>]>` backed slab allocator where each `Slot` has an `Option<T>` value plus `prev`/`next` u32 indices forming a doubly-linked list for LRU ordering. Free slots are chained via the `next` field into a free list. A sentinel value `NONE = u32::MAX` is used instead of `Option<u32>`, which means the maximum capacity is `u32::MAX - 1` (enforced by assertions). The public API provides `insert`, `remove`, `get_mut` (which freshens LRU), `peek`/`peek_mut` (which don't freshen), `lru()` to get the least-recently-used slot, and iterators in LRU order.
+  
+  ### Detailed findings
+  
+  **Unsafe block 1 (lines 332–339): `IterMut::next`**
+  Uses raw pointer arithmetic (`self.slots.add(i as usize)`) and `addr_of_mut!` to access the `next` field and `value` field of individual slots. The safety argument is: `IterState::next` returns unique indices (it walks the linked list forward, decrementing `len` each time, never revisiting), and accessing `.next` and `.value` are disjoint fields so no mutable aliasing occurs. The raw pointer is derived from `self.slots` which is a `*mut Slot<T>` obtained from `as_mut_ptr().cast()` on the boxed slice. This is sound: the indices are in-bounds (they come from a valid linked list within the allocated slab), each index is yielded at most once, and the returned `&'a mut T` references are to disjoint `value` fields. The `PhantomData<&'a mut [Slot<T>]>` correctly ties the lifetime. **Verdict: sound.**
+  
+  **Unsafe block 2 (lines 352–358): `IterMut::next_back`**
+  Same pattern as above but walking backward via `prev`. Same soundness argument applies — `next_back` yields unique indices from the tail, and `IterState` tracks `len` to prevent overlap with `next`. When both `next` and `next_back` are called on the same iterator, `len` is shared and prevents them from crossing. **Verdict: sound.**
+  
+  **Potential panic paths with untrusted input:**
+  - `peek` (line 144) and `peek_mut` (line 149) call `.unwrap()` on the slot's value. If the user passes an out-of-bounds or freed slot index, this panics. This is acceptable — the API is index-based and documented as requiring valid slot indices. No safety issue, just a contract.
+  - `remove` (line 124) similarly panics via `.take().expect("removing empty slot")` on an already-removed slot.
+  - `from_iter` (line 234): `u32::try_from(iter.size_hint().0).unwrap()` could panic if the iterator hints at more than u32::MAX items. Minor, but reasonable.
+  
+  **Growth strategy (lines 78–101):**
+  On insert when full, capacity doubles (saturating at `u32::MAX - 1`). The reallocation rebuilds the entire slot array by taking values from the old array. The `iter_mut().map(|x| Slot { value: x.value.take(), ... })` pattern moves values out of the old boxed slice. This is correct — the old boxed slice is dropped after `.collect()` replaces `self.slots`.
+  
+  **Red-flag scan results:**
+  - No `std::process::Command`, no env var access, no network calls, no `include_bytes!`, no obfuscated strings, no suspicious constants, no `Drop` impls with side effects, no conditional compilation beyond `#[cfg(test)]`.
+  - The crate is `#![no_std]` with `extern crate alloc` — it genuinely has no access to filesystem, network, or process APIs.
+  
+  **Claims vs reality reconciliation:**
+  The crate claims to be pre-allocated storage with constant-time LRU tracking. The code confirms: insert/remove/get_mut/freshen are all O(1) linked-list operations. The slab pre-allocates slots via `with_capacity`. `no_std` compatible as claimed. Zero dependencies as claimed. No capabilities beyond what's stated.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - Test module (lines 408–474): read in full, tests cover basic LRU ordering, slot reuse, Debug formatting, reverse iteration, and vacant_key. Tests are straightforward and consistent with the implementation.
+  - Nothing was skipped.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+NE7frCuruaUH3yc7QvEVwsFrIyt0lUeObYkuhtenvT0SQa4m3rp-G1aCkF7i2lmlmPBy3ncsKLUH4j8_7ww_AA
+----- END CREV PROOF -----
+
