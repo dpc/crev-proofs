@@ -14050,3 +14050,108 @@ comment: |-
 n8iVES-8DeXUkr0HoVzTWiti76pTU1fqqG5n-6Zzl76PsDReLvj6I5KaYFMWmJ9YrGWxqEpkq0kTCdhL7A4OBA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: rfc6979
+  version: 0.4.0
+  digest: lghFdRxyaCI2hSFF6b6ddTz4kKFK-KyEgBbHsNNBq9U
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: rfc6979 0.4.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rfc6979-0.4.0
+  - Upstream repository: https://github.com/RustCrypto/signatures
+  - Upstream commit verified: 831dca9589dfd0cf512612138755f5ab1ab552e1
+  - Upstream tag for version: rfc6979/v0.4.0
+  - Verification outcome: pass (with note)
+  
+  ## Claims baseline
+  
+  The crate claims to be a pure Rust, `no_std` implementation of RFC 6979: Deterministic Usage of the Digital Signature Algorithm (DSA) and Elliptic Curve Digital Signature Algorithm (ECDSA). It generates deterministic ephemeral scalar `k` values using HMAC-DRBG. Dependencies are `hmac` (for HMAC-based DRBG) and `subtle` (for constant-time comparisons) — both appropriate for the stated purpose.
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records sha `7093bbad82628a44e255c61c5a8389449869bc81`, which does not exist in the upstream repository (likely a force-push or history rewrite in the monorepo). However, the tag `rfc6979/v0.4.0` points to commit `831dca9589dfd0cf512612138755f5ab1ab552e1`, and a recursive diff of `src/`, `Cargo.toml.orig` vs upstream `Cargo.toml`, `README.md`, and `CHANGELOG.md` shows **all files are bit-for-bit identical**. No unexpected files present on either side.
+  
+  The vcs_info sha mismatch is a minor discrepancy but not a security concern given that the tagged commit content matches perfectly. This is a known pattern in monorepos where history may be cleaned up.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — the crate is 146 Rust LoC across 2 source files, small enough to read end-to-end carefully.
+  
+  ### Non-negotiable checks
+  
+  - **`build.rs`**: None present. Positive.
+  - **`unsafe` code**: `#![forbid(unsafe_code)]` is set at crate level. No unsafe blocks anywhere. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **FFI**: No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  - **Dependencies**: Only `hmac` (with `reset` feature) and `subtle` — both from the RustCrypto ecosystem, both appropriate for a deterministic signature nonce generator. No surprising deps.
+  
+  ### File-by-file review
+  
+  **`src/lib.rs` — read in full**
+  
+  - Lines 1–4: `#![no_std]`, `#![forbid(unsafe_code, clippy::unwrap_used)]`, standard quality attributes. Good defensive defaults.
+  - Lines 40–55: Re-exports `consts` from `generic_array::typenum`, defines `ByteArray<Size>` type alias. Straightforward.
+  - Lines 56–86: `generate_k` function — the core API. Takes secret key `x`, field modulus `n`, hash `h`, and additional data. Creates an `HmacDrbg`, generates candidate `k` values in a loop, and returns the first `k` that satisfies `0 < k < n`. The comparison uses constant-time operations from `ct_cmp` module. The loop is correct per RFC 6979 Section 3.2.h — retry until a valid `k` is found.
+    - The constant-time check `(!k_is_zero & ct_cmp::ct_lt(&k, n)).into()` correctly combines "k is not zero" AND "k < n" using bitwise AND on `Choice` values, preserving constant-time properties.
+  - Lines 88–149: `HmacDrbg` struct implementing HMAC-DRBG per NIST SP 800-90A.
+    - `new()`: Initializes K to all-zeros HMAC key, V to all-0x01 bytes, then performs the RFC 6979 Section 3.2 steps (d through g). The loop `for i in 0..=1` covers both the initial update with `0x00` byte and the second update with `0x01` byte. Implementation matches the RFC.
+    - `fill_bytes()`: Generates output by repeatedly computing `V = HMAC_K(V)` and copying to output. After filling, updates K with `HMAC_K(V || 0x00)` and recomputes V. This matches RFC 6979 Section 3.2.h steps.
+    - Two `.expect("HMAC error")` calls on lines 124 and 145: These are on `SimpleHmac::new_from_slice()` which only fails if the key length is invalid. Since the key is always the output of a prior HMAC finalization (fixed-size), this cannot fail in practice. The `forbid(clippy::unwrap_used)` attribute means these are intentional `expect` calls with messages, not bare `unwrap`.
+  
+  **`src/ct_cmp.rs` — read in full**
+  
+  - `ct_eq`: Constant-time equality comparison using `subtle::ConstantTimeEq` and `ConditionallySelectable`. Iterates all bytes, conditionally assigns 0 on mismatch. Correct — processes every byte regardless of early mismatch.
+  - `ct_lt`: Constant-time less-than for big-endian integers. Performs byte-by-byte subtraction with borrow from LSB to MSB (iterating in reverse since big-endian). The borrow propagation logic:
+    - `c = b + (borrow >> 7)` — adds previous borrow (0 or 1) to b
+    - `borrow = (a - c) >> 8` — if a < c, the subtraction wraps and bit 8 is set, producing a non-zero borrow
+    - Final result: `!borrow.ct_eq(&0)` — if there's a borrow at the end, a < b, so returns 1.
+    - This is correct constant-time less-than. The use of `u16` prevents overflow issues.
+  - Tests (lines 34–87): Comprehensive edge-case testing of ct_eq and ct_lt with boundary values (0, 1, 0xFF000000, 0xFF000001, 0xFFFFFFFE, 0xFFFFFFFF).
+  
+  **`tests/lib.rs` — read in full**
+  
+  - This file is gated on `#[cfg(feature = "dev")]` and tests ECDSA signature types from `elliptic_curve` and `ecdsa` crates — these are dev-dependencies not present in the published crate. Not exercisable from this crate's published form. No concerns.
+  
+  ### Claims vs. reality reconciliation
+  
+  - Claims: pure Rust, no_std, RFC 6979 deterministic k generation.
+  - Reality: Confirmed. No filesystem access, no network access, no process spawning, no env var reading, no FFI. Only uses `hmac` for HMAC computation and `subtle` for constant-time primitives. The implementation closely follows RFC 6979 Section 3.2 and NIST SP 800-90A.
+  
+  ### Architectural summary
+  
+  The crate has a clean two-layer design: `HmacDrbg` handles the HMAC-DRBG state machine (init, generate), and `generate_k` wraps it with the rejection-sampling loop that ensures `0 < k < n`. Constant-time comparisons are correctly isolated in `ct_cmp` using the `subtle` crate primitives. The public API surface is minimal: one function (`generate_k`), one struct (`HmacDrbg`), and one type alias (`ByteArray`).
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  - The `tests/lib.rs` file is only compilable with a `dev` feature and external crates not in the published dependencies — it was read but is not exercisable.
+  - The `.cargo_vcs_info.json` sha mismatch with upstream is noted but not a security concern since the tagged commit content matches.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+wIzJXHCq7yespry2ARdQhAjuPUh01duxdH1Xyj_QUf4mGN0mH2lZfCKt-JRoLSKtecwFB9UU5p_jcM69Ksa3DQ
+----- END CREV PROOF -----
+
