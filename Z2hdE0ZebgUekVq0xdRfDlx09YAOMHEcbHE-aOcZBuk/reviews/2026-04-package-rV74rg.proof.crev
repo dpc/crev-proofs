@@ -14837,3 +14837,113 @@ comment: |-
 V9hWWjMylZTs_5LZBQar1D1THHX1OprsBh66a0SKJ7N7PPSwdS2akrx_gSIffET7M9-AQ9UZlHO07Uhn4UdWCA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-14T03:16:51+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: criterion-cycles-per-byte
+  version: 0.8.0
+  digest: 5Xc-mSV3bSZ0trcmhRaqv78HB2W0H6M_qXur9UepnZ8
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: criterion-cycles-per-byte 0.8.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/criterion-cycles-per-byte-0.8.0
+  - Upstream repository: https://github.com/wainwrightmark/criterion-cycles-per-byte
+  - Upstream commit verified: ab104cdeaee9deeb29afa84b2139e8a957a954dc
+  - Upstream tag for version: master branch HEAD (commit message: "bumped version to 0.8.0, supporting criterion 0.8")
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/wainwrightmark/criterion-cycles-per-byte at commit `ab104cdeaee9deeb29afa84b2139e8a957a954dc` (master HEAD). The `.cargo_vcs_info.json` sha matches exactly. `diff -r --brief` shows only `Cargo.toml` differs (expected — rewritten by `cargo publish`). `Cargo.toml.orig` is bit-for-bit identical to upstream's `Cargo.toml`. All other files identical.
+  
+  No version tag exists for 0.8.0 (prior versions used tags like `v0.7.0`, `v0.6.1`); the commit is identified by its message and sha from `.cargo_vcs_info.json`. This is a minor process gap but not a security concern — the sha match is the authoritative verification.
+  
+  ## Code review findings
+  
+  - Chosen thoroughness: **medium** (196 lines of Rust in `src/lib.rs`, well under 300 LoC threshold; read everything end-to-end)
+  - Files in crate: `src/lib.rs`, `benches/fibonacci.rs`
+  
+  ### Claims baseline
+  
+  The crate claims to provide a `CyclesPerByte` measurement type for the `criterion` benchmarking framework, using CPU timestamp counter instructions (rdtsc/rdpru on x86/x86_64, pmccntr_el0 on aarch64, rdtime.d on loongarch64). Dependencies are `criterion` and `cfg-if`, both expected.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** — **read in full**
+    - No `build.rs` present — positive.
+    - No proc-macro — positive.
+    - No FFI (`extern "C"`) — positive.
+    - No network calls, no filesystem access, no env var reads, no process spawning — positive.
+    - Dependencies (`criterion`, `cfg-if`) are justified by purpose — positive.
+  
+  ### Unsafe analysis
+  
+  One `unsafe` block at line 45, wrapping the entire `cycle_counter()` function body. The block uses architecture-specific intrinsics via `cfg_if!`:
+  
+  1. **x86/x86_64 with `rdpru` cfg**: Uses `_mm_lfence()` (safe intrinsic requiring `unsafe`), then inline asm `rdpru` reading APERF counter (ecx=1), then another `_mm_lfence()`. The inline asm is correctly annotated with `nostack, nomem, preserves_flags`. Output registers (`edx`, `eax`) are correctly combined into u64. Sound — the instruction reads a CPU counter and has no memory side effects.
+  
+  2. **x86/x86_64 without `rdpru`**: Uses `_mm_lfence()` + `_rdtsc()` + `_mm_lfence()`. `_rdtsc()` is a well-known safe intrinsic that reads the timestamp counter. Sound.
+  
+  3. **aarch64 linux**: Inline asm `dsb sy; mrs {}, pmccntr_el0` — reads the performance monitor cycle counter. The comment correctly warns this will panic with "illegal instruction" unless a kernel module is installed to enable userspace access. The asm itself is sound — it reads a register into a variable with no memory effects. The `dsb sy` is a data synchronization barrier, appropriate here.
+  
+  4. **loongarch64**: Inline asm `rdtime.d {0}, $zero` — reads a time counter. Sound, no memory effects.
+  
+  5. **All other architectures**: `compile_error!()` — prevents silent incorrect behavior. Positive.
+  
+  **Verdict on unsafe**: All unsafe usage is for reading CPU performance/time counters via architecture-specific instructions. Each block reads a single counter register with no memory writes, no pointer manipulation, no aliasing concerns. The `unsafe` is necessary and minimal. Sound.
+  
+  ### Red-flag scan
+  
+  - No `transmute`, `from_raw`, raw pointer arithmetic.
+  - No `Command::new`, `std::env::var`, `reqwest`, `include_bytes!`.
+  - No base64/hex blobs, no obfuscated strings.
+  - No `Drop` impls with side effects.
+  - No custom serde deserializers.
+  - `#[cfg(...)]` usage is clearly architecture-gating for the correct instructions — non-suspicious.
+  
+  ### Architecture summary
+  
+  The crate exports a single public type `CyclesPerByte` (unit struct) that implements criterion's `Measurement` trait. The `cycle_counter()` function reads the CPU cycle/timestamp counter using the appropriate architecture-specific instruction. The `CyclesPerByteFormatter` struct (private) implements criterion's `ValueFormatter` trait to format values as "cycles", "cpb", "cycles per bit", etc. The formatting logic is straightforward division by throughput values. The `Measurement` impl uses `saturating_sub` in `end()` to handle counter wraparound safely.
+  
+  ### Reconciliation against claims
+  
+  The crate does exactly what it claims: provides a criterion `Measurement` implementation using CPU cycle counters. No capabilities beyond what's advertised. No network, filesystem, process, or env access. Dependencies are minimal and justified.
+  
+  ### Minor observations
+  
+  - The `*value as f64` cast in `to_f64` (line 120) could lose precision for very large u64 values, but this is standard practice for benchmark measurements and not a real concern.
+  - Division by throughput values in formatter methods could theoretically divide by zero if throughput is zero, but criterion doesn't produce zero-throughput values in practice.
+  - No version tag for 0.8.0 in git (prior versions had tags) — minor release engineering gap.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `benches/fibonacci.rs` — **read in full**. Contains two simple fibonacci implementations and a criterion benchmark group. No concerns.
+  - `CHANGELOG.md`, `LICENSE-APACHE`, `LICENSE-MIT` — not read (non-code, standard license files).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+yrJimHZi69F8nYvFXWDcS-XiNilrJ1deICtBLqKw2IPZJLHAXsngJkLUovGmD-oBTZdfJnDo6X8RcdOK1NA_AA
+----- END CREV PROOF -----
+
