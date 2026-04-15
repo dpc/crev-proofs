@@ -14710,3 +14710,130 @@ comment: |-
 5I6Kwtgm9vM9-y8iJLYcpRdZ_bqdWFrTDXy4drL5TI9-qkCx4xcQMUq-5sHmOg-2Rd8cei0cXPccD79QgSB_Cg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-14T03:11:55+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: base32
+  version: 0.5.1
+  digest: lw6a19AP7KWAKrd4RtbzqkNAFQ9nZE4xug8pY7zHvak
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: base32 0.5.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/base32-0.5.1
+  - Upstream repository: https://github.com/andreasots/base32
+  - Upstream commit verified: eed2049099a52e51a29a1b4ed0502404481b194f
+  - Upstream tag for version: v0.5.1
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` records sha `eed2049099a52e51a29a1b4ed0502404481b194f`. This commit
+  is the HEAD of `master` and is tagged `v0.5.1` in the upstream repository. `diff -r --brief`
+  between the crate source and the upstream checkout (excluding expected cargo-generated files:
+  `.cargo_vcs_info.json`, `.cargo-ok`, `Cargo.toml`, `Cargo.toml.orig`, `.git`, `.github`)
+  shows zero differences. `Cargo.toml.orig` is identical to the upstream `Cargo.toml`.
+  
+  All files bit-for-bit identical. Verification passed.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium** — The crate is a single 530-line file (`src/lib.rs`), well
+  under 300 LoC of non-test Rust code (~182 lines excluding tests). Small enough for a careful
+  end-to-end read.
+  
+  ### Claims baseline
+  
+  The crate claims to be a Base32 encoder/decoder supporting multiple alphabets (Crockford,
+  RFC4648, RFC4648Hex, z-base-32) with optional padding. `#![no_std]` compatible, requires
+  only `alloc`. This is a pure data-encoding library with no I/O.
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**. This is the only source file.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: Not present. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **Dependencies**: Zero runtime dependencies. Only `quickcheck = "1.0.3"` as dev-dependency. Consistent with stated purpose.
+  - **Unsafe blocks**: None. `rg -n 'unsafe' src/` returns zero results. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  
+  ### Red-flag scan results
+  
+  - `unsafe`, `transmute`, `from_raw`: not present.
+  - `std::process::Command`, shell invocation: not present.
+  - `std::env::var`, `std::env::vars`: not present.
+  - Network libraries (`reqwest`, `ureq`, `hyper`, `curl`, TCP): not present.
+  - `include_bytes!`, `include_str!`: `include_str!("../README.md")` on line 529, used only for `#[cfg(doctest)]` — benign.
+  - Base64/hex blobs, obfuscated strings: not present. All `const` byte arrays are readable ASCII alphabet tables.
+  - `unwrap`/`expect`/`panic!`: single `unwrap()` on line 70: `String::from_utf8(ret).unwrap()`. The `ret` Vec is built entirely by indexing into hard-coded ASCII alphabet tables (each exactly 32 bytes, all printable ASCII). The index values are masked to 5-bit range (0–31), so every byte pushed is a valid ASCII character. The `unwrap()` cannot fail. No other panic-capable calls in non-test code.
+  - Conditional compilation: `#[cfg(test)]` for the test module and `#[cfg(doctest)]` for README doctests. No target-specific conditional compilation.
+  - `Drop` impls: none.
+  - Custom serde: none (serde not used).
+  
+  ### Architecture summary
+  
+  The crate exports two functions (`encode`, `decode`) and one enum (`Alphabet`). Encoding
+  processes input in 5-byte chunks, expanding each to 8 base32 characters via bit manipulation
+  and lookup into a 32-byte alphabet table. Decoding reverses this: 8-character chunks are
+  mapped through a 75-entry inverse table (covering ASCII '0' through 'z'), with `-1` entries
+  for invalid characters causing an early `None` return. Padding is handled by truncating or
+  appending `=` characters. The bit manipulation is standard base32 encoding logic.
+  
+  ### Claims vs reality reconciliation
+  
+  - Claims: pure base32 encode/decode, no_std, multiple alphabets. Reality: exactly that.
+  - No capabilities beyond encoding/decoding byte slices to/from strings.
+  - No filesystem, network, process, env, FFI, or unsafe usage.
+  - All reconciliations pass.
+  
+  ### Minor observations (not issues)
+  
+  1. The `RFC4648_INV_PAD` table maps `=` (index 13, since `b'=' - b'0' = 13`) to `0` rather
+     than a special sentinel. This means padded decode treats `=` as a valid character producing
+     value 0, relying on the final `truncate(output_length)` to discard the decoded padding
+     bytes. This is functionally correct but means malformed input with `=` in non-padding
+     positions would silently decode rather than error. This is a known quirk of many base32
+     implementations, not a security issue.
+  
+  2. The `encode` function's capacity calculation `(data.len() + 3) / 4 * 5` slightly
+     under-allocates vs the theoretical `(data.len() + 4) / 5 * 8`, but the Vec will
+     reallocate transparently. Not a correctness issue.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - `.github/` directory in the crate tarball was not inspected (CI configuration, not
+    shipped code).
+  - License files (`LICENSE-APACHE`, `LICENSE-MIT`) were not read beyond noting their
+    presence.
+  - Tests (lines 184–526) were read to confirm they exercise encode/decode round-trips
+    with quickcheck property testing. Tests are consistent with claimed functionality.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+V9hWWjMylZTs_5LZBQar1D1THHX1OprsBh66a0SKJ7N7PPSwdS2akrx_gSIffET7M9-AQ9UZlHO07Uhn4UdWCA
+----- END CREV PROOF -----
+
