@@ -14947,3 +14947,127 @@ comment: |-
 yrJimHZi69F8nYvFXWDcS-XiNilrJ1deICtBLqKw2IPZJLHAXsngJkLUovGmD-oBTZdfJnDo6X8RcdOK1NA_AA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-14T03:21:50+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: serde-big-array
+  version: 0.5.1
+  digest: JDJUK1ttzJgXcMTN06nV_LIP1fy1ukPJg_1U0hT-qMo
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: serde-big-array 0.5.1
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-big-array-0.5.1
+  - Upstream repository: https://github.com/est31/serde-big-array
+  - Upstream commit verified: a6f7cf86e3808773b763d04b06745e67f3d20daf
+  - Upstream tag for version: v0.5.1
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/est31/serde-big-array at commit
+  `a6f7cf86e3808773b763d04b06745e67f3d20daf` tagged `v0.5.1`. The `.cargo_vcs_info.json`
+  sha matches the tag commit exactly. `Cargo.toml.orig` is identical to the upstream
+  `Cargo.toml`. All other files are bit-for-bit identical. No unexpected differences found.
+  
+  ## Code review findings
+  
+  ### Claims baseline
+  
+  The crate claims to provide serde (de-)serialization support for arrays of sizes > 32,
+  via two tools: a `BigArray` trait used with `#[serde(with = "BigArray")]`, and an `Array`
+  newtype struct for nested scenarios. It is `#![no_std]` and depends only on `serde`.
+  
+  ### Thoroughness level: medium
+  
+  Rationale: the crate has approximately 178 LoC of Rust across 3 source files, well within
+  the range for a careful end-to-end read.
+  
+  ### File map
+  
+  - `src/lib.rs` (54 lines): **read in full** - Module declarations, re-exports, and crate-level docs. `#![no_std]`.
+  - `src/const_generics.rs` (123 lines): **read in full** - Core implementation of `BigArray` trait and `PartiallyInitialized` helper.
+  - `src/array.rs` (103 lines): **read in full** - `Array<T, N>` newtype with serde impls, `Deref`/`DerefMut`/`Index`/`IndexMut`, and `Default`.
+  - `tests/` (8 test files): **not read** - Test files, not relevant for security review.
+  - `README.md`: **read in full** - Matches crate description.
+  
+  ### Non-negotiable checks
+  
+  - **`build.rs`**: Not present. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **Dependencies**: Only `serde` (with `default-features = false`). Entirely appropriate for the crate's purpose. Dev-deps are `serde_derive` and `serde_json`. No suspicious dependencies.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries.
+  - **`unsafe` blocks**: Three occurrences, all analyzed below.
+  
+  ### Unsafe analysis
+  
+  1. **`src/const_generics.rs:30` (`Drop` impl for `PartiallyInitialized`)**: Uses `core::ptr::drop_in_place` to drop initialized elements during cleanup. The `PartiallyInitialized` struct tracks how many elements have been initialized via `self.1` (a counter). On drop, it decrements the counter and drops each element in reverse order. The `wrapping_add` offset calculation is correct for array element access. The `needs_drop::<T>()` early return is a valid optimization. Soundness argument: the counter accurately tracks the number of initialized elements because it is incremented only after each successful `core::ptr::write`, so only truly initialized elements are dropped. The pointer arithmetic is within the bounds of the `MaybeUninit<[T; N]>` allocation.
+  
+  2. **`src/const_generics.rs:96` (deserialization `visit_seq`)**: Creates a `PartiallyInitialized`, writes deserialized elements one by one via `core::ptr::write`, increments the counter after each write, then calls `assume_init` after all N elements are written. Soundness argument: the loop runs exactly N times, writing one element per iteration, and the counter reaches N before `assume_init` is called. If deserialization fails mid-way (via the `?` operator), the `PartiallyInitialized` is dropped, which correctly drops only the already-initialized elements via the `Drop` impl above. The `arr.0.take().unwrap()` removes the `Option` wrapper so the `Drop` impl won't double-drop.
+  
+  3. **`src/array.rs:42` (`Default` impl for `Array<T, N>`)**: Identical pattern to the deserialization case: creates `PartiallyInitialized`, writes `Default::default()` for each element, increments counter, then calls `assume_init`. Soundness argument: same as above -- counter tracks initialization state, `Drop` handles partial initialization on panic, and `take()` prevents double-drop.
+  
+  All three unsafe blocks follow the same well-structured pattern using `PartiallyInitialized` as a guard. The pattern is sound: initialization is tracked element-by-element, cleanup handles partial initialization correctly, and `take()` ensures no double-free.
+  
+  ### Red-flag scan
+  
+  - No `transmute`, `from_raw`, or raw pointer arithmetic beyond the array element access pattern.
+  - No `std::process::Command`, no shell invocation.
+  - No `std::env::var` or environment variable access.
+  - No network libraries, no `reqwest`/`hyper`/`curl`.
+  - No `include_bytes!` or `include_str!`.
+  - No base64/hex blobs or obfuscated strings.
+  - No suspicious `#[cfg(...)]` blocks.
+  - The `Drop` impl for `PartiallyInitialized` has side effects beyond freeing memory (it drops contained elements), but this is the entire purpose of the type and is correct.
+  - No custom serde deserializers with unbounded allocation -- the array size N is a const generic, so allocation is bounded.
+  
+  ### Architecture summary
+  
+  The crate provides serde support for `[T; N]` arrays of arbitrary size. It defines a
+  `BigArray` trait implemented for `[T; N]` that provides `serialize` (via `SerializeTuple`)
+  and `deserialize` (via a custom `Visitor` with `visit_seq`). The `PartiallyInitialized`
+  helper safely manages partially-initialized `MaybeUninit` arrays during deserialization,
+  ensuring proper cleanup on error. The `Array<T, N>` newtype wraps `[T; N]` with
+  `#[repr(transparent)]` and delegates serde to `BigArray`, adding convenience trait impls.
+  
+  ### Claims vs. reality reconciliation
+  
+  - Claims: serde support for big arrays, `#![no_std]`, minimal dependencies.
+  - Reality: exactly that. No filesystem, network, process, env, or FFI access. Only capability exercised is serde serialization/deserialization, which matches the stated purpose. The sole dependency `serde` is justified.
+  
+  ### Minor observations
+  
+  - The doctest in `src/lib.rs` line 42 contains `assert!(false);` which would fail if run, but it's preceded by a `#[test]` attribute inside a doc example, and the example has `# fn main() {}` at the end, so the test function is not the entry point. This is a quirk of the doc example formatting, not a bug in the library code itself.
+  - The crate's stated purpose (arrays > 32) is now somewhat obsolete since serde 1.0.195+ supports const generics natively, but the crate remains functional and useful for projects on older serde versions.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  - Test files (8 files in `tests/`) were not read. They are integration tests and do not affect the library's security properties.
+  - The `TODO` comment in `array.rs:39` about using `array::from_fn` once MSRV allows it is a minor code quality note, not a concern.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+VcFVXXGbZItSLBe-TaJz88Eh3VCL3l-nuQ-9ecfadsOW_Rv_GoLxZ9DoN4NoIabCRx4QZUC-NQOavJ2GgCBjCg
+----- END CREV PROOF -----
+
