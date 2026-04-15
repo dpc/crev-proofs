@@ -14478,3 +14478,87 @@ comment: |-
 I34Kk7jUYKIx28xd7iNIuJ6th20inRkLHJxWdA-x4M29on9cXhl2Y4MTZRQlHU7vCb2AZieOL1t1SMEeTkOGCw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-14T03:01:22+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: num_enum
+  version: 0.7.4
+  digest: Iau3iwPqYn3rJULFcDsy3U5xcJ0CydI-qsb0fKYYiFM
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: num_enum 0.7.4
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num_enum-0.7.4
+  - Upstream repository: https://github.com/illicitonion/num_enum
+  - Upstream commit verified: e5dc4da1f8a9cdd691345c6d864b86197e36b1bc
+  - Upstream tag for version: 0.7.4
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  `.cargo_vcs_info.json` records sha `e5dc4da1f8a9cdd691345c6d864b86197e36b1bc` with `path_in_vcs: "num_enum"`. Cloned upstream repo; tag `0.7.4` resolves to the same commit. Commit message is "Release 0.7.4 (#164)". `diff -r --brief` between crates.io source and upstream `num_enum/` shows only `Cargo.toml` differs (expected: rewritten by `cargo publish`). `Cargo.toml.orig` is byte-identical to upstream `Cargo.toml`. All other files (src, tests, licenses, README) match exactly.
+  
+  ## Code review findings
+  
+  **Thoroughness level chosen: medium** — crate has only 100 lines of Rust in a single file (`src/lib.rs`), small enough to read end-to-end carefully.
+  
+  **Claims baseline:** The crate claims to provide "procedural macros to make inter-operation between primitives and enums easier." It re-exports derive macros from `num_enum_derive` and defines the companion traits and error types they need. Keywords: enum, conversion, safe, ffi, derive. Categories: rust-patterns. No claims of I/O, networking, or filesystem access.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc-macro**: This crate is NOT a proc-macro crate itself (`proc-macro = true` is not set). It re-exports derives from `num_enum_derive` which is a separate crate (not reviewed here).
+  - **Dependencies**: `num_enum_derive = "=0.7.4"` (the companion proc-macro, expected) and `rustversion = "1.0.4"` (for conditional compilation on Rust version, used for `core::error::Error` impl). Both are appropriate for the crate's purpose. No suspicious deps.
+  - **FFI surface**: None.
+  - **Unsafe blocks**: Two `unsafe fn` declarations in the `UnsafeFromPrimitive` trait (lines 43, 52). These are trait method signatures — the trait declares the safety contract (caller must pass a valid discriminant). The default implementation of `from_unchecked` delegates to `unchecked_transmute_from`. No actual `unsafe` *blocks* exist in this crate; the transmute implementation lives in `num_enum_derive`'s generated code. The safety contract is properly documented with `# Safety` sections.
+  
+  ### File-by-file review
+  
+  - **src/lib.rs** — **read in full**: 100 lines. Contains:
+    - Feature-gated `include_str!("../README.md")` for docs — benign, just embeds the README.
+    - `no_std` support via `cfg_attr`.
+    - Re-exports of 5 derive macros from `num_enum_derive`.
+    - 4 trait definitions: `FromPrimitive`, `TryFromPrimitive`, `UnsafeFromPrimitive`, `CannotDeriveBothFromPrimitiveAndTryFromPrimitive` (the last is `#[doc(hidden)]`, used for compile-time conflict detection).
+    - `TryFromPrimitiveError<Enum>` struct with `Debug`, `Display`, and conditional `Error` impls.
+    - The `rustversion::since(1.81)` / `rustversion::before(1.81)` pair for `Error` impl is a clean pattern to support `core::error::Error` (stabilized in 1.81) while falling back to `std::error::Error` on older compilers.
+    - No network access, no filesystem access, no process spawning, no env var reads, no obfuscated strings, no binary blobs.
+  
+  ### Architecture summary
+  
+  This is a thin "facade" crate: it re-exports derive macros from `num_enum_derive` and provides the trait definitions and error type those macros rely on. The actual code generation (including the `unsafe transmute` in `UnsafeFromPrimitive` impls) happens in `num_enum_derive`. This crate is purely trait definitions, a simple error struct, and re-exports.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate claims to provide enum-primitive conversion macros. It does exactly that: re-exports derive macros and defines the supporting traits. No capabilities beyond what's claimed. No I/O, no network, no unsafe blocks (only unsafe fn signatures on a trait). Clean.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database (`cargo crev repo query review num_enum` returned empty).
+  
+  ## Open questions / things skipped
+  
+  - **num_enum_derive** (the companion proc-macro crate) is NOT reviewed here. That crate contains the actual code generation including transmute logic and is the higher-risk component. This review only covers the facade crate.
+  - Test files in `tests/` were not read in full — they are trybuild compile-fail tests and integration tests for the derive macros. Given this is a facade crate with no logic beyond trait definitions and error formatting, the tests exercise `num_enum_derive` rather than code in this crate.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+7r3mvbbVG-nxwQUOtt_M37vYsuDL-wyQLKxZIcl6F9YMhrwkicPpSjwTAVu5vEkm1rVuMekrmc91N72OOkP9Dw
+----- END CREV PROOF -----
+
