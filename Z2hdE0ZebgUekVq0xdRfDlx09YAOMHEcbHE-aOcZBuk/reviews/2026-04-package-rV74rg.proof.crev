@@ -14562,3 +14562,151 @@ comment: |-
 7r3mvbbVG-nxwQUOtt_M37vYsuDL-wyQLKxZIcl6F9YMhrwkicPpSjwTAVu5vEkm1rVuMekrmc91N72OOkP9Dw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-14T03:07:36+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: postcard-derive
+  version: 0.1.2
+  digest: LeMRRReMsk1AhP4stW8jhO4g45jFTYabaW5gcbghvpE
+review:
+  thoroughness: medium
+  understanding: high
+  rating: strong
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: postcard-derive 0.1.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/postcard-derive-0.1.2
+  - Upstream repository: https://github.com/jamesmunns/postcard
+  - Upstream commit verified: cacf3cec4cc061c2d6275ea24752e20357648c82
+  - Upstream tag for version: derive-v0.1.2
+  - path_in_vcs: source/postcard-derive
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/jamesmunns/postcard at commit
+  `cacf3cec4cc061c2d6275ea24752e20357648c82` tagged `derive-v0.1.2` (path
+  `source/postcard-derive` in monorepo). The sha from `.cargo_vcs_info.json` and the
+  version tag point to the same commit.
+  
+  `diff -r --brief` between the crates.io source and the upstream directory (excluding
+  expected-to-differ files) shows:
+  - `Cargo.toml`: differs as expected (rewritten by `cargo publish`). `Cargo.toml.orig`
+    is bit-for-bit identical to the upstream `Cargo.toml`.
+  - `README.md`: exists only in tarball — the original manifest has `readme = "../../README.md"`
+    which `cargo publish` inlines. This is the parent postcard crate's README. Expected and benign.
+  
+  All source files (src/) are bit-for-bit identical.
+  
+  ## Code review findings
+  
+  - **Thoroughness level: medium** — Crate is ~209 Rust LoC across 3 files; small enough to read
+    every line carefully. This is a proc-macro crate (compile-time code execution), so it warrants
+    careful attention.
+  
+  ### Claims baseline
+  
+  The crate claims to be the derive macro companion for postcard, a `#![no_std]`-focused serde
+  serializer. It provides two derive macros: `MaxSize` (computes maximum serialized size at
+  compile time) and `Schema` (generates schema metadata at compile time). It should only do
+  compile-time code generation via syn/quote — no I/O, no network, no filesystem, no unsafe.
+  
+  ### Dependencies
+  
+  - `syn` 1.0: justified — standard proc-macro parsing library
+  - `quote` 1.0: justified — standard proc-macro code generation
+  - `proc-macro2` 1.0: justified — standard proc-macro token stream types
+  
+  No unexpected dependencies. No dev-dependencies. No build-dependencies. No build.rs.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** (14 lines) — **read in full**. Declares two submodules and two `#[proc_macro_derive]`
+    entry points: `derive_max_size` and `derive_schema`. Each simply delegates to its module's
+    `do_derive_*` function. Clean, minimal, no issues.
+  
+  - **src/max_size.rs** (122 lines) — **read in full**.
+    - `do_derive_max_size`: Parses input as `DeriveInput`, adds `MaxSize` trait bounds to generic
+      params, generates a `const POSTCARD_MAX_SIZE: usize` expression. Clean.
+    - `add_trait_bounds`: Adds `::postcard::experimental::max_size::MaxSize` bound to each type
+      parameter. Clean.
+    - `max_size_sum`: For structs, sums field sizes. For enums, computes varint discriminant size +
+      max of variant sizes. Rejects unions with a compile error. Clean.
+    - `sum_fields`: Generates `0 + <T1>::POSTCARD_MAX_SIZE + <T2>::POSTCARD_MAX_SIZE + ...` for
+      named/unnamed fields, `0` for unit. Uses fully-qualified trait paths. Clean.
+    - `varint_size_discriminant`: Pure arithmetic computing varint encoding size for a u32 max value.
+      Uses `leading_zeros()` and integer division. Clean, correct.
+    - Note: The enum max computation at line 53-65 uses a fold with `if lhs > rhs { lhs } else { rhs }`
+      instead of `std::cmp::max` because this runs in const context. This is intentional and correct.
+  
+  - **src/schema.rs** (124 lines) — **read in full**.
+    - `do_derive_schema`: Parses input, adds `Schema` trait bounds, generates `const SCHEMA` impl.
+      Clean.
+    - `generate_type`: Handles struct/enum/union (union rejected with error). For enums, generates
+      `SdmTy::Enum` with named variants. Clean.
+    - `generate_struct`: Named fields -> `SdmTy::Struct`, unnamed -> `SdmTy::TupleStruct`,
+      unit -> `SdmTy::UnitStruct`. Clean.
+    - `generate_variants`: Named fields -> `SdmTy::StructVariant`, unnamed -> `SdmTy::TupleVariant`,
+      unit -> `SdmTy::UnitVariant`. Clean.
+    - `add_trait_bounds`: Same pattern as max_size.rs but with `Schema` bound.
+    - Note: The docstring on line 113 says "Add a bound `T: MaxSize`" but should say `T: Schema`.
+      This is a minor copy-paste documentation error, harmless.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc-macro**: Yes, `proc-macro = true`. Both `#[proc_macro_derive]` functions reviewed in full.
+    They only perform syntactic transformation via syn/quote — no I/O, no side effects, no env
+    var reads, no network calls, no file system access.
+  - **Unsafe blocks**: Zero. Confirmed via `rg -n 'unsafe'`. Positive.
+  - **FFI surface**: None. Positive.
+  - **Red-flag patterns**: Scanned for `unsafe`, `transmute`, `from_raw`, `Command`, `std::env`,
+    `reqwest`, `include_bytes`, `include_str`, `extern "C"`, base64 literals, obfuscated strings,
+    `Drop` impls — all clean. Zero hits.
+  
+  ### Architecture summary
+  
+  This is a straightforward proc-macro derive crate. It provides two derives (`MaxSize` and
+  `Schema`) that generate trait implementations by walking the `syn::DeriveInput` AST. `MaxSize`
+  generates a const expression summing field sizes (with varint discriminant overhead for enums).
+  `Schema` generates a const static description of the type's structure. Both use fully-qualified
+  paths to `::postcard::experimental::*` traits, handle structs/enums/unions (rejecting unions),
+  and add appropriate trait bounds to generic parameters. The code is well-structured, idiomatic
+  proc-macro code with no surprises.
+  
+  ### Claims vs reality reconciliation
+  
+  The crate does exactly what it claims — provides derive macros for postcard's `MaxSize` and
+  `Schema` traits. It exercises no capabilities beyond compile-time code generation via syn/quote.
+  No I/O, no network, no filesystem, no env vars, no unsafe, no FFI, no process spawning. All
+  generated code uses fully-qualified paths which is good practice for derive macros.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - Minor: The `add_trait_bounds` docstring in `schema.rs` (line 113) incorrectly says "MaxSize"
+    instead of "Schema". This is a harmless copy-paste error in a comment.
+  - Nothing else skipped. All 3 source files read in full.
+  
+  ## Draft review fields
+  
+  - rating: strong
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+5I6Kwtgm9vM9-y8iJLYcpRdZ_bqdWFrTDXy4drL5TI9-qkCx4xcQMUq-5sHmOg-2Rd8cei0cXPccD79QgSB_Cg
+----- END CREV PROOF -----
+
