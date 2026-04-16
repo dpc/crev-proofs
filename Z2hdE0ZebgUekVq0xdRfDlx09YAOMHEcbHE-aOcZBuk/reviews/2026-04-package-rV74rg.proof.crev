@@ -15202,3 +15202,167 @@ comment: |-
 Pvj1p5gKpF4Wg69gtLfMA6TEH33R1TG7N3Zn5vzKE_yKMwd1pPWS-JyXFsIIS7z-IEBCe5ORsc_UIB9FoMunBA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-14T03:40:53+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: cobs
+  version: 0.2.3
+  digest: QaDIOzjXG3hW-lStT8rHWEFa4uMUvkWqeTwc_Vq9vZU
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: cobs 0.2.3
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cobs-0.2.3
+  - Upstream repository: https://github.com/jamesmunns/cobs.rs
+  - Upstream commit verified: 627ae5ec1e723313c5e6f08676473614482bfde7
+  - Upstream tag for version: v0.2.3
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/jamesmunns/cobs.rs at commit
+  `627ae5ec1e723313c5e6f08676473614482bfde7` tagged `v0.2.3`. The `.cargo_vcs_info.json`
+  sha matches the tag exactly. All source files are bit-for-bit identical between the
+  crates.io tarball and the upstream checkout at the tagged commit. `Cargo.toml.orig`
+  matches upstream `Cargo.toml` exactly (no workspace inheritance differences — this
+  is a standalone crate).
+  
+  ## Code review findings
+  
+  Thoroughness level: **medium** — crate is ~590 non-test lines of Rust across 3 source
+  files, small enough to read carefully end-to-end.
+  
+  ### Claims baseline
+  
+  The crate claims to implement Consistent Overhead Byte Stuffing (COBS), an algorithm
+  for encoding messages such that a sentinel byte (typically 0x00) does not appear in
+  the output. This is used for framing in serial communication. It supports both
+  streaming and one-shot encode/decode, in-place decoding, arbitrary sentinel values
+  (via XOR), and `no_std` operation (with optional `use_std` feature for `Vec`-based
+  convenience functions). Dependencies: none at runtime; `quickcheck` as dev-dependency.
+  
+  ### Per-file review map
+  
+  - **src/lib.rs** (14 lines) — **read in full**. Module re-exports and `max_encoding_length`
+    helper. The formula `source_len + (source_len / 254) + if source_len % 254 > 0 { 1 } else { 0 }`
+    is correct per COBS spec (one overhead byte per 254 data bytes).
+  
+  - **src/enc.rs** (216 lines) — **read in full**. Contains `EncoderState` state machine,
+    `CobsEncoder` streaming wrapper, and convenience functions (`encode`, `try_encode`,
+    `encode_with_sentinel`, `encode_vec`, `encode_vec_with_sentinel`).
+    - `EncoderState::push` correctly handles: zero bytes (emit distance marker, reset run),
+      non-zero bytes (append to run), and the 0xFF boundary (254 non-zero bytes triggers
+      a chain code). State tracking via `code_idx`, `num_bt_sent`, `offset_idx` is correct.
+    - `CobsEncoder::push` uses `get_mut().ok_or(())` for bounds checking — no panics on
+      buffer overflow, returns `Err(())` instead.
+    - `encode()` calls `unwrap()` on push/finalize — documented to panic if dest buffer
+      is too small (see doc comment). This is acceptable given the `max_encoding_length`
+      helper is provided.
+    - `encode_with_sentinel` XORs every encoded byte with the sentinel — correct per the
+      COBS paper's extension for arbitrary sentinels.
+    - No issues found.
+  
+  - **src/dec.rs** (360 lines) — **read in full**. Contains `DecoderState` state machine,
+    `CobsDecoder` streaming wrapper, `decode_raw!` macro for in-place decoding, and
+    convenience functions.
+    - `DecoderState::feed` implements a clean state machine with three states: `Idle`,
+      `Grab(n)`, `GrabChain(n)`. All transitions are covered and correct:
+      - Idle + 0x00 → stay idle (skip consecutive terminators)
+      - Idle + 0xFF → GrabChain(0xFE) (254 non-zero bytes follow)
+      - Idle + n → Grab(n-1) (n-1 data bytes, then implicit zero)
+      - Grab(0) + 0x00 → DataComplete (well-framed message end)
+      - Grab(0) + 0xFF → DataContinue(0) + GrabChain(0xFE)
+      - Grab(0) + n → DataContinue(0) + Grab(n-1)
+      - Grab(_) + 0 → Err (unexpected terminator)
+      - Grab(i) + n → DataContinue(n) + Grab(i-1)
+      - GrabChain transitions mirror Grab but without emitting an implicit zero at
+        boundary (correct per COBS spec for 0xFF code).
+    - `decode_raw!` macro: used for in-place decoding. Contains a `TODO` comment about
+      potential panics at line 227 — the `$dst[dest_index]` and `$src[source_index]`
+      accesses are direct indexing without bounds checks. However, the bounds check at
+      line 221 (`source_index + code as usize > src_end && code != 1`) ensures the inner
+      loop won't read past `src_end`. For the destination buffer: since decoding always
+      produces fewer bytes than the encoded input, and in-place decoding uses the same
+      buffer, `dest_index` will always be <= `source_index`, so no OOB write can occur
+      in the in-place case. For the separate-buffer `decode()` function, it uses the
+      streaming decoder (not the macro), so this is not a concern there.
+    - `decode()` function: tries streaming decode first; if the buffer doesn't end with
+      a zero sentinel, it feeds an explicit 0x00 to complete decoding. This is a
+      reasonable design choice for handling messages without trailing terminators.
+    - `decode_with_sentinel` XOR-copies source to dest, then decodes in-place — correct.
+  
+  - **tests/test.rs** (265 lines) — **read in full**. Comprehensive test suite including
+    Wikipedia COBS examples (examples 6-10), round-trip tests, streaming encode/decode,
+    a malformed-input test, and quickcheck property tests for arbitrary sentinel values.
+    Tests confirm correctness of the implementation.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Cargo.toml dependencies**: Zero runtime dependencies. Only dev-dependency is
+    `quickcheck ^0.5.0`. Fully appropriate.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **`unsafe` blocks**: Zero `unsafe` usage anywhere in the crate. Positive.
+  - **FFI surface**: None. No `extern "C"`, no `bindgen`, no linked C libraries. Positive.
+  
+  ### Red-flag scan results
+  
+  Searched for: `unsafe`, `transmute`, `from_raw`, `Command::new`, `std::env::var`,
+  `reqwest`, `include_bytes!`, `include_str!`, base64 literals, obfuscated strings.
+  **Zero hits.** This crate is pure safe Rust with no I/O, no network access, no
+  filesystem access, no process spawning, and no environment variable reading.
+  
+  ### Architecture summary
+  
+  The crate provides two parallel APIs for COBS encoding and decoding:
+  1. **Streaming**: `CobsEncoder`/`CobsDecoder` wrap state machines (`EncoderState`/
+     `DecoderState`) with output buffer management. Data can be pushed in chunks.
+  2. **One-shot**: `encode`/`decode` and variants wrap the streaming API for convenience.
+     `decode_in_place` uses a macro (`decode_raw!`) that works because decoded output
+     is always shorter than encoded input.
+  
+  The sentinel-value extension uses XOR to transform any sentinel to/from zero, which
+  is the standard approach from the COBS paper. The `no_std` support is clean — only
+  `Vec`-based convenience functions are gated behind `use_std`.
+  
+  ### Minor observations (not issues)
+  
+  - `ok_or_else(|| ())` could be simplified to `ok_or(())` since `()` is zero-cost.
+    Cosmetic only.
+  - Some `return` keywords at end of functions are unnecessary (e.g., `enc.rs:153`,
+    `enc.rs:197`). Cosmetic only.
+  - The `decode_raw!` macro uses direct indexing which could panic on malformed input
+    if the destination buffer is smaller than expected. However, in practice this only
+    occurs via `decode_in_place` where src==dst, making OOB impossible.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version in the local proof database.
+  
+  ## Open questions / things skipped
+  
+  Nothing skipped. All `.rs` files read in full. LICENSE files not reviewed (standard
+  Apache-2.0/MIT dual license).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+R3DbScJsdJvFd87dzBW-7meeDCSfsHcFobDhFJH5OypDAjI2w6onW1fphbopLuyXN860VSErh0HqZbxWE9EHCA
+----- END CREV PROOF -----
+
