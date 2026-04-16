@@ -15107,3 +15107,98 @@ comment: |-
 a0w1iqVkUaniu_any5HSkefP6VFVSZYlK77OC0xHT-Omnz3FlKiWM1UTUsR-L0eIxivEDDkbrYcLIXT08cS7Cg
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-13T00:00:00+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: anstyle-query
+  version: 1.1.3
+  digest: ZRTcZ1xFCNIXF8SmbDL1u7OUyTZX4yvOFyEyD0wQROw
+review:
+  thoroughness: high
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: anstyle-query 1.1.3
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anstyle-query-1.1.3
+  - Upstream repository: https://github.com/rust-cli/anstyle
+  - Upstream commit verified: 886539c95318db5de9db49b6d66d19413bd308cc
+  - Upstream tag for version: anstyle-query-v1.1.3
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The `.cargo_vcs_info.json` records commit `886539c95318db5de9db49b6d66d19413bd308cc` with
+  path_in_vcs `crates/anstyle-query`. The upstream repo at `https://github.com/rust-cli/anstyle`
+  has a tag `anstyle-query-v1.1.3` pointing to the same commit. A recursive diff of the `src/`
+  directory and `Cargo.toml.orig` between the crate source and the upstream checkout shows zero
+  differences. The published crate matches upstream exactly.
+  
+  ## Code review findings
+  
+  ### Files reviewed
+  
+  - `src/lib.rs` (164 lines) -- fully read
+  - `src/windows.rs` (80 lines) -- fully read
+  - `examples/query.rs` (27 lines) -- fully read
+  - `Cargo.toml` / `Cargo.toml.orig` -- fully read
+  
+  ### Summary of functionality
+  
+  The crate provides pure query functions for terminal color capabilities:
+  
+  - `clicolor()` -- checks `CLICOLOR` env var
+  - `clicolor_force()` -- checks `CLICOLOR_FORCE` env var
+  - `no_color()` -- checks `NO_COLOR` env var (no-color.org standard)
+  - `term_supports_color()` -- checks `TERM` env var (rejects "dumb")
+  - `term_supports_ansi_color()` -- like above, also rejects "cygwin" on Windows
+  - `truecolor()` -- checks `COLORTERM` for "truecolor" or "24bit"
+  - `is_ci()` -- checks `CI` env var presence
+  - `windows::enable_ansi_colors()` -- on Windows, enables VT processing via Win32 API; returns `None` on non-Windows
+  
+  ### Red-flag scan
+  
+  - **build.rs**: None (Cargo.toml explicitly sets `build = false`)
+  - **Proc macros**: None
+  - **Unsafe code**: One `unsafe` block in `src/windows.rs` (lines 13-33), Windows-only (`#[cfg(windows)]`). It calls `GetConsoleMode` and `SetConsoleMode` via `windows-sys` FFI. The usage is straightforward and correct: it gets a console handle, reads the current mode, ORs in `ENABLE_VIRTUAL_TERMINAL_PROCESSING`, and sets it back. The handle is obtained from `std::io::stdout()/stderr()` via `AsRawHandle`, which is the standard approach.
+  - **Dependencies**: Only `windows-sys 0.59.0` on `cfg(windows)` target. No dependencies on non-Windows. This is a well-known Microsoft-maintained crate.
+  - **Network/filesystem access**: None. Only reads environment variables and (on Windows) calls console APIs.
+  - **Feature flags**: None defined.
+  
+  ### Claims vs reality
+  
+  The crate claims to "look up colored console capabilities." This is accurate -- it reads environment variables following well-established conventions (NO_COLOR, CLICOLOR, COLORTERM, TERM, CI) and on Windows can enable VT processing. The code is simple, correct, and does exactly what it says.
+  
+  ### Code quality
+  
+  The code is clean, well-documented with links to relevant standards, and has basic unit tests for the `non_empty` helper. The `#[inline]` annotations are appropriate for these small functions. Clippy lints are configured strictly in Cargo.toml.
+  
+  ## Cross-check against existing reviews
+  
+  No existing cargo-crev reviews found for this crate.
+  
+  ## Open questions / things skipped
+  
+  - The example file was reviewed but is not part of the library.
+  - Windows-specific code paths were reviewed but cannot be tested on this Linux platform.
+  - No tests exist for the public API functions (they depend on environment state), only for the internal `non_empty` helper.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: high
+  - understanding: high
+----- SIGN CREV PROOF -----
+Pvj1p5gKpF4Wg69gtLfMA6TEH33R1TG7N3Zn5vzKE_yKMwd1pPWS-JyXFsIIS7z-IEBCe5ORsc_UIB9FoMunBA
+----- END CREV PROOF -----
+
