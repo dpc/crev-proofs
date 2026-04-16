@@ -15563,3 +15563,99 @@ comment: |-
 AIv7BuQWmUa4jkZhGfSggpIAbwZPppLK0MrUaAXjMQ9zpcQpZcUkPbaU8Lob7QW2fTYMr8vw0Vt4cqkN4SLcAQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-14T21:29:16.207621+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: powerfmt
+  version: 0.2.0
+  digest: zNcsEsMuitz9Ra3hbzQduGqmLBl5AQYXNRQMivkn0ac
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: powerfmt 0.2.0
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/powerfmt-0.2.0
+  - Upstream repository: https://github.com/jhpratt/powerfmt
+  - Upstream commit verified: 5889a2a65c99836fd718340726f6b4379bc5028f
+  - Upstream tag for version: v0.2.0
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  powerfmt claims to be a formatting utility library that makes it easier to support filling to a minimum width with alignment, avoid heap allocation, and avoid repetitive calculations. It provides a SmartDisplay trait (an extension of Display with metadata), a stack-allocated WriteBuffer, and Formatter extension traits. It supports no_std and no_alloc configurations.
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/jhpratt/powerfmt at commit 5889a2a65c99836fd718340726f6b4379bc5028f, which is tagged v0.2.0. Source files in src/ are bit-for-bit identical between the crates.io tarball and the upstream repo at the powerfmt/ subdirectory. No unexpected file differences found.
+  
+  ## Code review findings
+  
+  Thoroughness level: medium. The crate has 5 Rust source files totaling around 1000 lines of code, well within the range for a careful end-to-end read.
+  
+  ### Non-negotiable checks
+  
+  - build.rs: None present. Positive.
+  - Proc-macro: Not a proc-macro crate. The optional powerfmt-macros dependency provides proc macros but is a separate crate and not included in this review.
+  - Dependencies: Only dependency is optional powerfmt-macros (workspace dep). No unexpected dependencies. Positive.
+  - FFI surface: None. No extern C, no bindgen, no linked C libraries.
+  
+  ### Per-file review
+  
+  - src/lib.rs: read in full. Minimal module declarations, no_std support, alloc extern crate. Clean, no issues.
+  
+  - src/buf.rs: read in full. Contains WriteBuffer, a stack-allocated formatting buffer using MaybeUninit. Contains 6 unsafe blocks:
+    1. maybe_uninit_uninit_array (line 150): Standard pattern for creating uninitialized arrays on stable Rust. Sound: an uninitialized array of MaybeUninit is valid by definition.
+    2. Deref::deref (lines 106-110): Calls maybe_uninit_slice_assume_init_ref then str::from_utf8_unchecked. Sound: write_str only accepts valid UTF-8 and correctly tracks len.
+    3. maybe_uninit_write_slice (line 160): Casts [T] to [MaybeUninit<T>]. Sound: MaybeUninit<T> has same layout as T.
+    4. maybe_uninit_write_slice (line 165): Calls maybe_uninit_slice_assume_init_mut after copying. Sound: elements were just initialized.
+    5. maybe_uninit_slice_assume_init_mut (lines 178-180): Casts mut [MaybeUninit<T>] to mut [U]. Note: uses generic U instead of T, more permissive than necessary. Not a soundness issue in practice (private, only called with matching types), but unnecessary foot-gun.
+    6. maybe_uninit_slice_assume_init_ref (lines 195-197): Standard pattern, sound when caller ensures initialization.
+  
+    The write_str implementation (lines 132-143) correctly bounds-checks before writing and returns Err on overflow. No panics on untrusted input.
+  
+  - src/ext.rs: read in full. Contains FormatterExt trait with pad_with_width method. Pure safe code. Sealed trait pattern prevents external implementations. Alignment logic is correct. No issues.
+  
+  - src/smart_display.rs: read in full. Contains FormatterOptions, Metadata, and the SmartDisplay trait. Two unsafe blocks:
+    1. FormatterOptions::width() (line 418): self.width.assume_init() guarded by flag bit check. Sound.
+    2. FormatterOptions::precision() (line 431): Same pattern for precision. Sound.
+  
+    Minor bug: Line 189, the alternate option handler in padded_width_of! macro calls .with_width($e) instead of .with_alternate($e) -- copy-paste error.
+  
+    The SmartDisplay trait design is clean. Metadata uses PhantomData for variance correctly.
+  
+  - src/smart_display_impls.rs: read in full. Implementations of SmartDisplay for standard library types. All safe code. Width calculations for integers use checked_ilog10 correctly. Minor issue: sign_minus flag for unsigned integers (line 252) adds 1 to width, but Display for unsigned integers does not render a sign for sign_minus.
+  
+  ### Reconciliation against claims
+  
+  All code is formatting-related. No network access, no filesystem access, no process spawning, no env var reading. The unsafe usage is limited to MaybeUninit manipulation for stack-allocated buffers and is justified by the no-alloc goal. All capabilities match the stated purpose.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version.
+  
+  ## Open questions / things skipped
+  
+  - The optional powerfmt-macros proc-macro dependency was not reviewed (separate crate).
+  - Tests and examples were not reviewed (not present in the published crate).
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+hIRjIn6GpLc-DqYD98OLhHBrP9Oclxo9ftXW6y6ayGGRuU35LdsjekvxpR8CugE0gFkQZoSSFc040M8AHUzXBw
+----- END CREV PROOF -----
+
