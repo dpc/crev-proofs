@@ -15464,3 +15464,102 @@ comment: |-
 VpdnvvB4IJUgeqHJME3kcG7ecYvtmOYq6bne6ObXFOB9HcccCfZqPKgsUmApewlD0wT1dVliT8BeClfyUKRcBQ
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-14T03:51:33+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: derive_builder_fork_arti
+  version: 0.11.2
+  digest: 8wqy9eusiC7sin7q8S6n_sInIRmbcV5ba5FFe3Fso-A
+review:
+  thoroughness: medium
+  understanding: high
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: derive_builder_fork_arti 0.11.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive_builder_fork_arti-0.11.2
+  - Upstream repository: https://github.com/ijackson/rust-derive-builder
+  - Upstream commit verified: c7415eb2627f79b4b8c358881e851b868c1f316e
+  - Upstream tag for version: no version-specific tag found; commit identified via .cargo_vcs_info.json sha
+  - Verification outcome: pass
+  
+  ## Claims baseline
+  
+  This crate claims to be a fork of `derive_builder` maintained by the Arti/Tor Project team (Ian Jackson). It adds a `sub_builder` feature not accepted upstream. It provides a `#[derive(Builder)]` proc-macro for automatically generating builder-pattern structs. The runtime crate re-exports the proc-macro from `derive_builder_macro_fork_arti` and provides two error types (`UninitializedFieldError`, `SubfieldBuildError`).
+  
+  ## External verification
+  
+  Package matches public repo https://github.com/ijackson/rust-derive-builder at commit c7415eb2627f79b4b8c358881e851b868c1f316e (the merge commit for the `field-builder` branch). The `path_in_vcs` is `derive_builder`, consistent with a workspace layout. `Cargo.toml.orig` is bit-for-bit identical to the upstream `Cargo.toml`. The only difference is a `tests/dummy-crate/` directory present upstream but excluded from the published tarball — this is expected (likely listed in `exclude` or not included by `cargo publish`). All other files are identical.
+  
+  No version-specific git tag was found for 0.11.2; the sha from `.cargo_vcs_info.json` was used directly and it exists upstream.
+  
+  ## Code review findings
+  
+  - Thoroughness level: **medium** (72 Rust LoC across 2 files — small enough to read carefully end-to-end)
+  
+  ### File map
+  
+  - `src/lib.rs` — **read in full**
+  - `src/error.rs` — **read in full**
+  - `Cargo.toml.orig` — **read in full**
+  - `README.md` — **read in full** (describes the fork's provenance and the sub_builder feature)
+  - `CHANGELOG.md` — **read in full** (present in tarball)
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **proc-macro**: Not a proc-macro crate itself; it re-exports `derive_builder_macro_fork_arti` which is a proc-macro. The macro crate has been reviewed separately.
+  - **unsafe**: Zero `unsafe` blocks in the entire source tree. Positive.
+  - **FFI**: None. No `extern "C"`, no `bindgen`, no linked C libraries.
+  - **Dependencies**: Only runtime dependency is `derive_builder_macro_fork_arti =0.11.2` (the companion proc-macro crate). This is expected and justified. Dev-dependencies are `pretty_assertions`, `rustversion`, `trybuild`, `serde`, `serde_json` — all standard testing utilities.
+  - **Red-flag patterns**: No `transmute`, `from_raw`, `Command::new`, `std::env::var`, `reqwest`, `include_bytes!`, `include_str!`, obfuscated strings, or suspicious byte arrays found.
+  
+  ### Detailed findings
+  
+  **`src/lib.rs`** (828 lines, ~800 of which are doc comments):
+  - Lines 1-800: Extensive rustdoc documentation with examples. Documentation matches the crate's stated purpose.
+  - Line 802: `#![deny(warnings)]` — standard.
+  - Line 803: `#![cfg_attr(not(feature = "std"), no_std)]` — conditional no_std support, expected.
+  - Lines 805-808: Conditional `extern crate alloc` for no_std, and `extern crate derive_builder_macro` — standard re-export pattern.
+  - Line 810: `mod error;` — pulls in the error module.
+  - Line 812: `pub use derive_builder_macro::Builder;` — re-exports the `Builder` derive macro. This is the core functionality.
+  - Lines 814-815: Re-exports `UninitializedFieldError` and `SubfieldBuildError` from the error module.
+  - Lines 818-827: `pub mod export::core` — a helper module that re-exports either `std` or `alloc`/`core` depending on the `std` feature flag. This is a common pattern for no_std compatibility and is used by the generated code.
+  
+  **`src/error.rs`** (87 lines):
+  - `UninitializedFieldError` (lines 9-37): A simple newtype wrapping `&'static str` (the field name). Implements `Debug`, `Clone`, `Display`, `Error` (when std), and `From<&'static str>`. Clean and straightforward.
+  - `SubfieldBuildError<E>` (lines 39-86): A tuple struct wrapping `(&'static str, E)` for reporting nested builder errors. Implements `Debug`, `Clone`, `Display` (when `E: Display`), `Error` (when `E: Error` and std). Also clean.
+  - The comment on lines 82-85 about not implementing `cause` is a deliberate design choice citing Rust EHWG recommendations. Reasonable.
+  
+  ### Reconciliation against claims
+  
+  The crate does exactly what it claims: re-exports a proc-macro derive and provides two small error types. No network access, no filesystem access, no process spawning, no env var reading, no FFI, no unsafe. The only capability is re-exporting types and a proc-macro — fully justified by the crate's purpose.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version. The companion crate `derive_builder_macro_fork_arti 0.11.2` has been reviewed separately in this project.
+  
+  ## Open questions / things skipped
+  
+  - The `tests/` directory contains integration tests and a `compile-fail/` directory for trybuild tests. These were not read in detail as they are test-only code and don't affect the published library's behavior. The test code cannot affect the runtime behavior of the crate.
+  - The `examples/` directory was not read.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: high
+----- SIGN CREV PROOF -----
+AIv7BuQWmUa4jkZhGfSggpIAbwZPppLK0MrUaAXjMQ9zpcQpZcUkPbaU8Lob7QW2fTYMr8vw0Vt4cqkN4SLcAQ
+----- END CREV PROOF -----
+
