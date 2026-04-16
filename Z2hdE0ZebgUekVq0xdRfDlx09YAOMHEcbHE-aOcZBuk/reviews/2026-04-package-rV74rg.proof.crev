@@ -15366,3 +15366,101 @@ comment: |-
 R3DbScJsdJvFd87dzBW-7meeDCSfsHcFobDhFJH5OypDAjI2w6onW1fphbopLuyXN860VSErh0HqZbxWE9EHCA
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-04-14T03:46:01.378198919+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: safelog
+  version: 0.7.2
+  digest: RniXZ12hWW-IGr9_712ZpOiWsFa6VgRvDV73NiNVUxE
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: claude-opus-4-6
+  human-guided: false
+comment: |-
+  # Review: safelog 0.7.2
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/safelog-0.7.2
+  - Upstream repository: https://gitlab.torproject.org/tpo/core/arti.git/ (cloned from mirror https://github.com/zydou/arti.git)
+  - Upstream commit verified: ea9fac019eb886e752652f0f49e9a320c9c98c51
+  - Upstream tag for version: n/a (no safelog-specific version tag found; commit is the merge recorded in .cargo_vcs_info.json)
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The crate's `.cargo_vcs_info.json` records commit `ea9fac019eb886e752652f0f49e9a320c9c98c51` with `path_in_vcs: "crates/safelog"`. The official GitLab repo was unreachable, so the GitHub mirror at `zydou/arti` was used. The commit exists in the mirror. All source files were compared:
+  
+  - `src/lib.rs` — identical
+  - `src/err.rs` — identical
+  - `src/flags.rs` — identical
+  - `src/impls.rs` — identical
+  - `Cargo.toml.orig` vs upstream `Cargo.toml` — identical
+  - `README.md` — identical
+  
+  No unexpected files present in the crate tarball beyond the standard cargo artifacts (`.cargo_vcs_info.json`, `Cargo.toml` rewritten, `Cargo.lock`). No version-specific tag was found (the arti project uses release tags like `arti-v2.0.0` rather than per-crate tags), but the vcs_info sha matches the upstream content exactly.
+  
+  ## Code review findings
+  
+  **Thoroughness level: medium.** The crate has 740 LoC across 4 source files (< 1500 LoC threshold), making a careful end-to-end read feasible.
+  
+  **Claims baseline:** The crate claims to provide a way to mark data as sensitive for logging purposes, conditionally suppressing confidential information from Display/Debug output. It provides `Sensitive<T>` and `Redacted<T>` wrapper types, and global/thread-local flags to control logging behavior.
+  
+  ### Per-file review
+  
+  - **src/lib.rs** (651 lines) — **read in full**. Defines `Sensitive<T>`, `BoxSensitive<T>`, `Redacted<T>`, `MaybeRedacted<T>`, `DisplayRedacted`, `DebugRedacted` traits, `DispRedacted`/`DispUnredacted` wrappers, and `derive_redacted_debug!` macro. Also contains comprehensive test module. All formatting trait implementations consistently check `flags::unsafe_logging_enabled()` before deciding to show or scrub values. The `impl_display_traits!` macro is clean — generates Display/Debug/Binary/Octal/Hex/Exp/Pointer impls for both `Sensitive` and `BoxSensitive`. Uses `educe` for derive macros with custom bounds, `derive_more` for From/AsRef. The `either` crate is used in `MaybeRedacted` for conditional wrapping. All implementations are straightforward wrappers with no surprising behavior.
+  
+  - **src/err.rs** (25 lines) — **read in full**. Simple error enum with three variants: `AlreadySafe`, `AlreadyUnsafe`, `Overflow`. Uses `thiserror` for Display/Error derives. `#[non_exhaustive]` correctly applied. No issues.
+  
+  - **src/flags.rs** (346 lines) — **read in full**. Core logic for safe-logging state management. Uses a global `AtomicIsize` (`LOGGING_STATE`) and thread-local dynamic variable via `fluid_let` crate. The `Guard` type uses a compare-exchange loop to atomically transition state, with `SeqCst` ordering (conservative, correct). Drop impl properly decrements. The `unsafe_logging_enabled()` function checks both global state and thread-local override. Overflow protection via `checked_add`. Comprehensive concurrent tests (`interfere_1`, `interfere_2`, `interfere_3`) exercise thread safety. No correctness issues found. The `Ordering::Relaxed` on the read in `unsafe_logging_enabled()` is acceptable — the value is advisory for display formatting, not a synchronization primitive.
+  
+  - **src/impls.rs** (96 lines) — **read in full**. Implements `Redactable` for std network types: `Ipv4Addr`, `Ipv6Addr`, `IpAddr`, `SocketAddrV4`, `SocketAddrV6`, `SocketAddr`. Redaction shows only the first octet/segment of the IP address while preserving port numbers. Straightforward, no issues.
+  
+  ### Non-negotiable checks
+  
+  - **build.rs**: None present. Positive.
+  - **Proc-macro**: Not a proc-macro crate. Positive.
+  - **unsafe blocks**: Zero `unsafe` blocks in the entire crate. The word "unsafe" appears only in function/variable names referring to the "unsafe logging" concept. Positive.
+  - **FFI surface**: None. No `extern "C"`, no bindgen, no linked C libraries. Positive.
+  - **Dependencies**: `derive_more` (derive macros), `educe` (derive macros with custom bounds), `either` (sum type), `fluid-let` (thread-local dynamic scoping), `serde` (optional, serialization), `thiserror` (error derives). All dependencies are well-known and appropriate for the crate's purpose. No network, filesystem, or process dependencies. No surprising deps.
+  
+  ### Claims vs. reality reconciliation
+  
+  The crate claims to conditionally suppress confidential information from logs. The code does exactly this and nothing more:
+  - Wraps values in `Sensitive<T>` which scrubs Display/Debug output by default
+  - Provides global and thread-local overrides for debugging
+  - Provides `Redactable` trait for partial redaction
+  - No network access, no filesystem access, no process spawning, no env var reading
+  - All capabilities match the stated purpose
+  
+  ### Red-flag scan results
+  
+  No hits for: `unsafe`, `transmute`, `from_raw`, `Command::new`, `std::process`, `std::env::var`, `reqwest`, `include_bytes!`, `include_str!` (except the doc include), base64 literals, hex blobs, obfuscated strings. Clean.
+  
+  ## Cross-check against existing reviews
+  
+  No prior reviews of this crate at any version. This is consistent with the crate having zero reviews in the crev verify output.
+  
+  ## Open questions / things skipped
+  
+  - Test modules were read but not analyzed for correctness in depth (tests are context, not evidence of safety).
+  - The `fluid-let` dependency handles the thread-local dynamic scoping; its internals were not reviewed as part of this review.
+  - The `educe` and `derive_more` proc-macro expansions were not inspected at the macro-expansion level.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+VpdnvvB4IJUgeqHJME3kcG7ecYvtmOYq6bne6ObXFOB9HcccCfZqPKgsUmApewlD0wT1dVliT8BeClfyUKRcBQ
+----- END CREV PROOF -----
+
