@@ -1,0 +1,98 @@
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-05-06T08:12:39.715685+00:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: utf8_iter
+  version: 1.0.4
+  digest: -hu6Yd86tNbnGQKAwQwG-MHBZjpzI5yVu5TQJhstco4
+review:
+  thoroughness: medium
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: gpt-5
+  human-guided: false
+comment: |-
+  # Review: utf8_iter 1.0.4
+  
+  - Local source: /home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/utf8_iter-1.0.4
+  - Upstream repository: https://github.com/hsivonen/utf8_iter
+  - Upstream commit verified: 6b604ea2365bd535fb66eb4bfe92a9e00e333090
+  - Upstream tag for version: v1.0.4
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  - cargo-crev update failed to fetch one git@github.com remote due to missing SSH public key access; continued with local proof database and recorded this limitation.
+  - Selected candidate from saved target/crev-verify.txt: status none, version reviews 0, total reviews 0, low LoC (444), crate utf8_iter 1.0.4.
+  - .cargo_vcs_info.json records git sha 6b604ea2365bd535fb66eb4bfe92a9e00e333090 and empty path_in_vcs.
+  - Cargo.toml.orig repository is https://github.com/hsivonen/utf8_iter.
+  - Cloned upstream to target/crev/review-cache/utf8_iter.
+  - The recorded commit exists upstream and is tagged v1.0.4.
+  - Compared crate tarball against upstream commit with expected ignores: Cargo.toml, Cargo.toml.orig, .cargo_vcs_info.json, .cargo-ok, .git, .gitignore.
+  - Only non-ignored tree difference: upstream contains fuzz/ and the published crate does not. This is expected release packaging exclusion and not runtime code.
+  - Cargo.toml.orig is identical to upstream Cargo.toml at the verified commit.
+  
+  ## Code review findings
+  
+  - Chosen thoroughness: medium. The crate is small (cargo-crev reports 444 Rust LoC) and has only three Rust source files, so I read all source files in full and checked sensitive patterns.
+  - Claims baseline: crate claims to be a no_std iterator over potentially-invalid UTF-8 byte slices, replacing errors according to the WHATWG Encoding Standard / String::from_utf8_lossy behavior, with optional error-reporting iteration and char_indices-style byte positions.
+  - File map:
+    - Cargo.toml.orig: read in full.
+    - README.md: read in full.
+    - src/lib.rs: read in full.
+    - src/report.rs: read in full.
+    - src/indices.rs: read in full.
+    - tests/: none present in published crate.
+    - fuzz/: present upstream only, not included in published crate; not reviewed.
+  - Dependency/build/proc-macro/FFI checks:
+    - No dependencies in Cargo.toml; cargo tree shows only utf8_iter itself.
+    - No build.rs.
+    - Not a proc-macro crate.
+    - no_std crate; no std filesystem, network, process, environment, or FFI use found.
+    - No extern "C" or linked native libraries.
+  - Red-flag grep:
+    - unsafe appears only in calls to char::from_u32_unchecked after UTF-8 validation logic.
+    - unwrap_or appears only in a doc example mapping errors to U+FFFD.
+    - No Command, std::env, include_bytes/include_str, transmute, from_raw, panic!, expect, network, or filesystem hits.
+  - Architecture summary: src/lib.rs defines Utf8Chars, a lossy iterator over &[u8] that advances a remaining slice from the front or back. src/report.rs mirrors the decoder but yields Result<char, Utf8CharsError> so callers can distinguish real U+FFFD from malformed input. src/indices.rs wraps Utf8Chars to track byte offsets analogously to str::char_indices.
+  - Claims vs reality: The implementation matches the claimed scope. It only reads from caller-provided byte slices and returns chars/results/indices. I found no ambient capabilities beyond pure in-memory parsing/iteration.
+  - Unsafe review:
+    - src/lib.rs:134 and src/report.rs:96: 2-byte paths call char::from_u32_unchecked only after first is in 0xC2..=0xDF and second is in 0x80..=0xBF, yielding code points in U+0080..=U+07FF, valid scalar values.
+    - src/lib.rs:150 and src/report.rs:112: 3-byte fallback paths validate first in range, apply special bounds for E0 and ED, validate third continuation, and yield non-surrogate scalar values in valid UTF-8 range.
+    - src/lib.rs:189 and src/report.rs:145: fast 2-byte paths have the same 0xC2..=0xDF and continuation-byte validation before constructing the scalar.
+    - src/lib.rs:206 and src/report.rs:162: fast 3-byte paths use the copied encoding_rs validation table plus third continuation check; the table rejects overlong encodings and surrogate range per the same constraints as fallback before constructing a scalar.
+    - src/lib.rs:222 and src/report.rs:178: fast 4-byte paths validate the first/second pair through the table, validate third and fourth continuation-byte shape through bit checks, and thereby constrain output to U+010000..=U+10FFFF, valid scalar values.
+    - I did not independently rederive every entry of the 384-byte UTF8_DATA table; I checked how it is used and that it matches the crate's documented origin from encoding_rs. This limits understanding to medium rather than high.
+  - Iterator correctness notes:
+    - next_fallback handles short or malformed prefixes by consuming the number of bytes matching WHATWG decoder behavior as encoded by the branch comments and examples.
+    - next_back searches backward for a plausible sequence start up to four bytes, decodes that tail with the forward iterator, and only accepts it when the decoded iterator consumed the whole tail; otherwise it consumes one trailing byte as an error. This avoids accepting a suffix that is only partially valid.
+    - Utf8CharIndices updates front_offset by bytes consumed by the inner iterator and computes back indices from front_offset plus remaining length, matching the standard-library CharIndices pattern noted in the source.
+  - Minor limitation: forward iteration is reported by upstream as fuzzed, but the published crate contains no manually-written forward-iteration tests and does not include fuzz artifacts. This is not a security finding, but it limits independent confidence.
+  
+  ## Cross-check against existing reviews
+  
+  - Ran cargo crev repo query review utf8_iter after the attempted update. No prior reviews of this crate at any version were returned by the local proof database.
+  - No prior findings changed my draft rating, thoroughness, or understanding.
+  
+  ## Open questions / things skipped
+  
+  - Did not review upstream fuzz/ because it is not present in the published crate tarball.
+  - Did not independently regenerate or formally verify the copied UTF8_DATA table from encoding_rs.
+  - cargo crev update could not fetch one SSH GitHub remote in this environment; cross-check may miss proofs from that remote.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: medium
+  - understanding: medium
+----- SIGN CREV PROOF -----
+7h3_z7vq0khT2YQoIYmGcdyZuyDKPRbC8BD5oBv-u4zYLj4Zof-_6YnjDAjJ6C9sDr6_qt8yITe6tAzFvzEQAw
+----- END CREV PROOF -----
+
