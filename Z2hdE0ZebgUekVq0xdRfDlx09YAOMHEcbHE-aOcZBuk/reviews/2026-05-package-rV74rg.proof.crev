@@ -96,3 +96,91 @@ comment: |-
 7h3_z7vq0khT2YQoIYmGcdyZuyDKPRbC8BD5oBv-u4zYLj4Zof-_6YnjDAjJ6C9sDr6_qt8yITe6tAzFvzEQAw
 ----- END CREV PROOF -----
 
+----- BEGIN CREV PROOF -----
+kind: package review
+version: -1
+date: 2026-05-18T11:21:15-07:00
+from:
+  id-type: crev
+  id: Z2hdE0ZebgUekVq0xdRfDlx09YAOMHEcbHE-aOcZBuk
+  url: https://github.com/dpc/crev-proofs
+package:
+  source: https://crates.io
+  name: cargo-crap
+  version: 0.2.0
+  digest: KJrcLhkwYcDixw400gcntGHx_D8Hj9qTEwsB-tA_h1k
+review:
+  thoroughness: low
+  understanding: medium
+  rating: positive
+llm-agent:
+  model: openai-chatgpt
+  human-guided: false
+comment: |-
+  # Review: cargo-crap 0.2.0
+  
+  - Local source: `/home/dpc/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo-crap-0.2.0`
+  - Upstream repository: `https://github.com/minikin/cargo-crap`
+  - Upstream commit verified: `91a43994ba0562bba8938bcb4e97d500b01476f9`
+  - Upstream tag for version: `v0.2.0`
+  - Verification outcome: pass
+  
+  ## External verification
+  
+  The crates.io package metadata reports git sha `91a43994ba0562bba8938bcb4e97d500b01476f9`, and upstream tag `v0.2.0` points at the same commit. Comparing the crates.io unpacked source against that commit found no unexpected source-code differences. Differences were limited to cargo packaging/release artifacts: `Cargo.lock` exists only in the crates.io package, while upstream-only development files such as `CLAUDE.md`, `Justfile`, `clippy.toml`, `rustfmt.toml`, `rust-toolchain.toml`, and the workspace test fixture directory are not in the package.
+  
+  The missing upstream-only workspace fixture explains why running the full test suite directly inside the crates.io unpacked source fails for three workspace tests. Running the same upstream commit with the full repository checkout passed all tests.
+  
+  ## Code review findings
+  
+  Thoroughness: low. The crate is about 7k lines of Rust, so I did a focused supply-chain/security review, not a full line-by-line correctness audit.
+  
+  Claims baseline: `cargo-crap` claims to compute Change Risk Anti-Patterns scores for Rust projects by combining cyclomatic complexity from Rust AST parsing with LCOV coverage data, then rendering human/JSON/GitHub/Markdown/PR-comment/SARIF reports. The advertised capabilities imply local source-tree reads, LCOV/config/baseline reads, optional output-file writes, and `cargo metadata` in workspace mode.
+  
+  Non-negotiable checks:
+  
+  - No `build.rs` in the crate.
+  - Not a proc-macro crate.
+  - No `unsafe` in cargo-crap itself (`cargo geiger` reported `0/0` for the crate).
+  - No FFI surface found.
+  - `cargo audit --deny warnings` passed for the lockfile.
+  - Dependencies are consistent with the stated purpose: `syn`/`proc-macro2` for Rust parsing, `lcov` for coverage parsing, `ignore`/`globset`/`rayon` for source walking, `clap` for CLI, `serde`/`serde_json`/`toml` for config and output, and table/color crates for reporting.
+  
+  Red-flag scan results:
+  
+  - File reads are expected: Rust source files, LCOV files, `.cargo-crap.toml`, and JSON baselines.
+  - File writes are expected and user-directed: `--output <FILE>` and tests writing temp files.
+  - One process execution exists: `std::process::Command::new("cargo")` for `cargo metadata --no-deps --format-version 1` in `--workspace` mode. This is justified by the workspace analysis feature.
+  - Environment reads are limited to `GITHUB_SERVER_URL`, `GITHUB_REPOSITORY`, and `GITHUB_SHA` for source links, plus normal argument/CWD handling.
+  - No network client usage found in crate code. URL strings in docs/reporting are constants or rendered links, not fetched.
+  - No suspicious embedded blobs, obfuscated strings, shell invocations, or secret-file reads found.
+  
+  Architecture summary: the CLI parses options and optional config, analyzes source files with `syn`, parses LCOV line data, merges coverage spans with function spans, computes CRAP scores, optionally compares against a baseline, then renders one of several output formats. The code's observed capabilities match the crate's stated purpose.
+  
+  Validation performed:
+  
+  - `cargo info cargo-crap` showed latest release `0.2.0`.
+  - Upstream tag/commit verification passed as above.
+  - `cargo audit --deny warnings` passed.
+  - `cargo geiger` reported no unsafe in cargo-crap itself.
+  - Full upstream test suite at the verified commit passed.
+  - Nix package build passed with tests enabled.
+  - Smoke test: packaged `cargo-crap --version` printed `cargo-crap 0.2.0`.
+  
+  ## Cross-check against existing reviews
+  
+  `cargo crev repo query review cargo-crap` returned no prior reviews of this crate at any version. `cargo crev update` was run first; several proof repositories failed to fetch due authentication-required errors, but many proof repositories updated successfully.
+  
+  ## Open questions / things skipped
+  
+  I did not perform a full line-by-line correctness audit of every renderer or every test. I did not manually audit every transitive dependency beyond `cargo audit`, dependency tree inspection, and geiger output. I did not verify maintainer account history or release signing beyond matching the crates.io package to the public upstream tag.
+  
+  ## Draft review fields
+  
+  - rating: positive
+  - thoroughness: low
+  - understanding: medium
+----- SIGN CREV PROOF -----
+seg5anRa_fpy-adWBbaDch88ih6g8rzQfSbxZ_HwVdkWt_eRJw7xv8qydSnOLcKpAgZ-yQVcQzast0ou2BbJCQ
+----- END CREV PROOF -----
+
